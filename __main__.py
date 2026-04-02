@@ -5,7 +5,7 @@ import json
 import time
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel,
-    QFileDialog, QHBoxLayout, QProgressBar, QFrame
+    QFileDialog, QHBoxLayout, QProgressBar, QFrame, QStackedLayout
 )
 from PySide6.QtCore import QTimer, Qt
 
@@ -19,82 +19,131 @@ class AnswerBox(QFrame):
         self.selected = False
 
         self.setFrameShape(QFrame.Box)
-        self.setLineWidth(2)
-        self.setStyleSheet("background-color: lightgray; padding: 10px;")
+        self.setLineWidth(1)
+        self.setStyleSheet(self.default_style())
 
         layout = QVBoxLayout()
         self.label = QLabel(text)
         self.label.setWordWrap(True)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setStyleSheet("color: #222; font-size: 14px;")
         layout.addWidget(self.label)
         self.setLayout(layout)
 
+    def default_style(self):
+        return """
+        QFrame {
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            padding: 12px;
+        }
+        """
+
+    def selected_style(self):
+        return """
+        QFrame {
+            background-color: #cce5ff;
+            border-radius: 10px;
+            border: 2px solid #3399ff;
+            padding: 12px;
+        }
+        """
+
     def mousePressEvent(self, event):
         self.selected = not self.selected
-        self.update_style()
+        self.setStyleSheet(self.selected_style() if self.selected else self.default_style())
         self.callback(self.index, self.selected)
 
-    def update_style(self):
-        if self.selected:
-            self.setStyleSheet("background-color: #87CEFA; padding: 10px;")
-        else:
-            self.setStyleSheet("background-color: lightgray; padding: 10px;")
-
     def mark_correct(self):
-        self.setStyleSheet("background-color: lightgreen; padding: 10px;")
+        self.setStyleSheet("background-color: #c8f7c5; border-radius: 10px; padding: 12px;")
 
     def mark_wrong(self):
-        self.setStyleSheet("background-color: lightcoral; padding: 10px;")
+        self.setStyleSheet("background-color: #f7c5c5; border-radius: 10px; padding: 12px;")
 
     def mark_missing(self):
-        self.setStyleSheet("background-color: khaki; padding: 10px;")
+        self.setStyleSheet("background-color: #fff3b0; border-radius: 10px; padding: 12px;")
 
 
 class QuizApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Quiz Trainer")
+        self.setWindowTitle("Testo!")
 
+        self.stack = QStackedLayout()
+        self.setLayout(self.stack)
+
+        self.init_main_menu()
+        self.init_quiz_ui()
+
+        self.stack.setCurrentWidget(self.main_menu)
+
+    def init_main_menu(self):
+        self.main_menu = QWidget()
+        layout = QVBoxLayout()
+
+        title = QLabel("Testo!")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+
+        btn = QPushButton("Select Question Folder")
+        btn.clicked.connect(self.load_folder)
+
+        layout.addStretch()
+        layout.addWidget(title)
+        layout.addWidget(btn)
+        layout.addStretch()
+
+        self.main_menu.setLayout(layout)
+        self.stack.addWidget(self.main_menu)
+
+    def init_quiz_ui(self):
+        self.quiz_widget = QWidget()
         main_layout = QHBoxLayout()
-        self.setLayout(main_layout)
+        self.quiz_widget.setLayout(main_layout)
 
-        # LEFT PANEL (timer)
+        # LEFT PANEL
         self.left_panel = QVBoxLayout()
         self.timer_label = QLabel("Time: 0s")
-        self.left_panel.addWidget(self.timer_label)
+        self.counter_label = QLabel("Question 0/0")
         self.progress = QProgressBar()
+
+        self.left_panel.addWidget(self.timer_label)
+        self.left_panel.addWidget(self.counter_label)
         self.left_panel.addWidget(self.progress)
 
         main_layout.addLayout(self.left_panel, 1)
 
-        # RIGHT PANEL (quiz)
+        # RIGHT PANEL
         self.right_panel = QVBoxLayout()
         main_layout.addLayout(self.right_panel, 3)
 
-        self.load_btn = QPushButton("Select Question Folder")
-        self.load_btn.clicked.connect(self.load_folder)
-        self.right_panel.addWidget(self.load_btn)
-
-        self.question_label = QLabel("Load a folder to start")
+        self.question_label = QLabel("")
         self.question_label.setWordWrap(True)
-        self.right_panel.addWidget(self.question_label)
+        self.question_label.setStyleSheet("font-size: 16px;")
 
         self.answers_layout = QVBoxLayout()
-        self.right_panel.addLayout(self.answers_layout)
 
         self.submit_btn = QPushButton("Check Answer")
         self.submit_btn.clicked.connect(self.check_answer)
+
+        self.right_panel.addWidget(self.question_label)
+        self.right_panel.addLayout(self.answers_layout)
         self.right_panel.addWidget(self.submit_btn)
 
+        self.stack.addWidget(self.quiz_widget)
+
+        # state
         self.questions = []
         self.queue = []
         self.current = None
         self.config_path = None
         self.state = {}
-
         self.selected_answers = set()
         self.answer_boxes = []
+        self.current_index = 0
 
-        # TIMER
+        # timer
         self.start_time = None
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
@@ -112,23 +161,20 @@ class QuizApp(QWidget):
         if not folder:
             return
 
+        self.stack.setCurrentWidget(self.quiz_widget)
         self.start_timer()
 
         self.config_path = os.path.join(folder, CONFIG_NAME)
         self.questions = self.load_questions(folder)
 
-        if os.path.exists(self.config_path):
-            with open(self.config_path, "r") as f:
-                self.state = json.load(f)
-            self.queue = self.state["queue"]
-        else:
-            self.state = {
-                "status": {q["file"]: "new" for q in self.questions},
-                "queue": [q["file"] for q in self.questions]
-            }
-            self.queue = self.state["queue"]
-            self.save_state()
+        self.state = {
+            "status": {q["file"]: "new" for q in self.questions},
+            "queue": [q["file"] for q in self.questions]
+        }
+        self.queue = self.state["queue"]
+        self.current_index = 0
 
+        self.save_state()
         self.next_question()
 
     def load_questions(self, folder):
@@ -163,18 +209,21 @@ class QuizApp(QWidget):
 
     def next_question(self):
         if not self.queue:
-            self.question_label.setText("Done!")
+            self.finish_quiz()
             return
 
         self.selected_answers.clear()
 
         file = self.queue.pop(0)
         self.current = next(q for q in self.questions if q["file"] == file)
+        self.current_index += 1
 
         self.display_question()
         self.save_state()
 
     def display_question(self):
+        total = len(self.questions)
+        self.counter_label.setText(f"Question {self.current_index}/{total}")
         self.question_label.setText(self.current["question"])
 
         for i in reversed(range(self.answers_layout.count())):
@@ -217,7 +266,6 @@ class QuizApp(QWidget):
             random.shuffle(self.queue)
 
         self.save_state()
-
         QTimer.singleShot(1500, self.next_question)
 
     def update_progress(self):
@@ -226,6 +274,13 @@ class QuizApp(QWidget):
 
         self.progress.setMaximum(total)
         self.progress.setValue(correct)
+
+    def finish_quiz(self):
+        if os.path.exists(self.config_path):
+            os.remove(self.config_path)
+
+        self.timer.stop()
+        self.stack.setCurrentWidget(self.main_menu)
 
     def save_state(self):
         self.state["queue"] = self.queue
@@ -236,6 +291,6 @@ class QuizApp(QWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = QuizApp()
-    window.resize(1920, 1080)
+    window.resize(800, 500)
     window.show()
     sys.exit(app.exec())
