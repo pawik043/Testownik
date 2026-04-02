@@ -10,13 +10,13 @@ from PySide6.QtGui import QPainter, QColor, QFont
 CONFIG_NAME = "session.json"
 RECENT_FILE = "recent.json"
 
-# ---------- Smooth Progress ----------
+# ---------- Progress Bar ----------
 class ProgressWidget(QWidget):
     def __init__(self, state, counter_label=None):
         super().__init__()
         self.state = state
         self.counter_label = counter_label
-        self.setFixedHeight(20)
+        self.setFixedHeight(30)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -25,28 +25,30 @@ class ProgressWidget(QWidget):
 
         statuses = list(self.state["status"].values())
         total = len(statuses)
+        if total==0: return
         correct = sum(1 for s in statuses if s=='correct')
         wrong = sum(1 for s in statuses if s=='wrong')
         remaining = total - correct - wrong
 
         w = self.width()
-        if total==0: return
+        h = self.height()
 
-        # Draw correct portion
+        # Draw green (correct) from left
         painter.setBrush(QColor("#30d158"))
         painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(0,0, w*correct/total, self.height(), 8,8)
+        painter.drawRoundedRect(0,0, w*correct/total, h, 10,10)
 
-        # Draw wrong portion
+        # Draw red (wrong) from right
         painter.setBrush(QColor("#ff453a"))
-        painter.drawRoundedRect(w*(total-wrong)/total,0, w*wrong/total, self.height(), 8,8)
+        painter.drawRoundedRect(w - w*wrong/total,0, w*wrong/total, h, 10,10)
 
-        # Draw remaining background
+        # Draw yellow (remaining) in middle
         painter.setBrush(QColor("#ffd60a"))
-        painter.drawRoundedRect(w*correct/total,0, w*remaining/total, self.height(), 8,8)
+        painter.drawRoundedRect(w*correct/total,0, w*remaining/total, h, 10,10)
 
         if self.counter_label:
             self.counter_label.setText(f"Known: {correct}/{total}")
+            self.counter_label.setFont(QFont("Helvetica",12,QFont.Bold))
 
 # ---------- Answer Box ----------
 class AnswerBox(QFrame):
@@ -57,8 +59,7 @@ class AnswerBox(QFrame):
         self.selected = False
         self.setStyleSheet(self.default_style())
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0,0,0,0)
+        layout = QVBoxLayout(); layout.setContentsMargins(0,0,0,0)
         self.label = QLabel(text)
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
@@ -144,11 +145,11 @@ class QuizApp(QWidget):
         self.left = QVBoxLayout()
         self.return_btn = QPushButton("Return to Main Menu"); self.return_btn.clicked.connect(lambda: self.stack.setCurrentWidget(self.main_menu))
         self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.new_session)
-        self.timer_label = QLabel("0s"); self.timer_label.setAlignment(Qt.AlignCenter)
-        self.counter_label = QLabel("0 / 0"); self.counter_label.setAlignment(Qt.AlignCenter)
+        self.timer_label = QLabel("0s"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
+        self.counter_label = QLabel("0 / 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
         self.progress = ProgressWidget(None, self.counter_label)
         self.left.addWidget(self.return_btn); self.left.addWidget(self.reset_btn)
-        self.left.addWidget(self.timer_label); self.left.addStretch()
+        self.left.addStretch(); self.left.addWidget(self.timer_label); self.left.addStretch()
         self.left.addWidget(self.progress); self.left.addStretch()
 
         line = QFrame(); line.setFrameShape(QFrame.VLine); line.setStyleSheet("color:#3a3a3c")
@@ -211,7 +212,8 @@ class QuizApp(QWidget):
     def render(self):
         self.question_label.setText(self.current["question"])
         for i in reversed(range(self.answers.count())): self.answers.itemAt(i).widget().setParent(None)
-        self.boxes=[]; answers = self.current["answers"][:]; random.shuffle(answers)
+        self.boxes=[]
+        answers = self.current["answers"][:]; random.shuffle(answers)  # ensure shuffle each render
         cols=2 if len(answers)>2 else 1
         for i,a in enumerate(answers): b=AnswerBox(a,i,self.on_select); self.answers.addWidget(b,i//cols,i%cols); self.boxes.append(b)
         self.progress.state=self.state; self.progress.update()
@@ -220,9 +222,8 @@ class QuizApp(QWidget):
 
     def check_or_next(self):
         if self.waiting_next: self.next_q(); return
-        cs=set(self.current["correct"])
         ans_map={b.label.text():i for i,b in enumerate(self.boxes)}
-        cs_random=set(ans_map[self.current["answers"][i]] for i in cs)
+        cs_random=set(ans_map[self.current["answers"][i]] for i in self.current["correct"])
         for i,b in enumerate(self.boxes):
             if i in cs_random: b.mark_correct()
             elif i in cs_random and i not in self.selected: b.mark_missing()
