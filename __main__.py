@@ -2,7 +2,7 @@ import os, sys, random, json, time
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel,
     QFileDialog, QHBoxLayout, QFrame, QStackedLayout, QGridLayout,
-    QMessageBox, QInputDialog
+    QMessageBox, QInputDialog, QSpacerItem, QSizePolicy
 )
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QPainter, QColor, QFont
@@ -31,9 +31,9 @@ class ProgressWidget(QWidget):
         w = self.width() / total
 
         for i, s in enumerate(statuses):
-            if s == "correct": color = QColor("#30d158")
-            elif s == "wrong": color = QColor("#ff453a")
-            else: color = QColor("#3a3a3c")
+            if s == "correct": color = QColor("#30d158")  # green
+            elif s == "wrong": color = QColor("#ff453a")    # red
+            else: color = QColor("#ffd60a")                # yellow/orange
 
             painter.setBrush(color)
             painter.setPen(Qt.NoPen)
@@ -53,7 +53,7 @@ class AnswerBox(QFrame):
         self.label = QLabel(text)
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setStyleSheet("color:#e5e5e7; font-size:15px;")
+        self.label.setStyleSheet("color:#e5e5e7; font-size:16px; font-weight:600;")
         layout.addWidget(self.label)
         self.setLayout(layout)
 
@@ -83,13 +83,13 @@ class AnswerBox(QFrame):
         self.callback(self.index, self.selected)
 
     def mark_correct(self):
-        self.setStyleSheet("background:#30d15855; border-radius:14px;")
+        self.setStyleSheet("background:#30d158; border-radius:14px; color:#fff;")
 
     def mark_wrong(self):
-        self.setStyleSheet("background:#ff453a55; border-radius:14px;")
+        self.setStyleSheet("background:#ff453a; border-radius:14px; color:#fff;")
 
     def mark_missing(self):
-        self.setStyleSheet("background:#ffd60a55; border-radius:14px;")
+        self.setStyleSheet("background:#ffd60a; border-radius:14px; color:#fff;")
 
 # ---------- Main App ----------
 class QuizApp(QWidget):
@@ -122,7 +122,7 @@ class QuizApp(QWidget):
 
         title = QLabel("Quiz Trainer")
         title.setAlignment(Qt.AlignCenter)
-        title.setFont(QFont("Arial", 22, QFont.Bold))
+        title.setFont(QFont("Helvetica", 24, QFont.Bold))
 
         btn = QPushButton("Start Session")
         btn.clicked.connect(self.load_folder)
@@ -142,20 +142,33 @@ class QuizApp(QWidget):
 
         self.left = QVBoxLayout()
         self.timer_label = QLabel("0s")
+        self.timer_label.setAlignment(Qt.AlignCenter)
         self.counter_label = QLabel("0 / 0")
+        self.counter_label.setAlignment(Qt.AlignCenter)
+
+        # Add separator line
+        line = QFrame()
+        line.setFrameShape(QFrame.VLine)
+        line.setStyleSheet("color:#3a3a3c")
+
         self.progress = ProgressWidget(None)
 
         self.left.addWidget(self.timer_label)
         self.left.addWidget(self.counter_label)
         self.left.addWidget(self.progress)
+        self.left.addStretch()
+
         main_layout.addLayout(self.left,1)
+        main_layout.addWidget(line)
 
         self.right = QVBoxLayout()
         main_layout.addLayout(self.right,3)
 
         self.question_label = QLabel()
         self.question_label.setWordWrap(True)
-        self.question_label.setStyleSheet("font-size:18px; margin-bottom:10px;")
+        self.question_label.setAlignment(Qt.AlignCenter)
+        self.question_label.setFont(QFont("Helvetica",20,QFont.Bold))
+        self.question_label.setStyleSheet("color:#e5e5e7; margin-bottom:15px;")
 
         self.answers = QGridLayout()
 
