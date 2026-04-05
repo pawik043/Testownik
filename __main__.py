@@ -132,6 +132,8 @@ class AnswerBox(QFrame):
         """
 
     def mousePressEvent(self, event):
+        if not self.isEnabled():
+            return
         self.selected = not self.selected
         self.setStyleSheet(self.selected_style() if self.selected else self.default_style())
         self.callback(self.index, self.selected)
@@ -326,6 +328,7 @@ class QuizApp(QWidget):
         cols = 2 if len(paired) > 2 else 1
         for i, (_, a) in enumerate(paired):
             b = AnswerBox(a, i, self.on_select)
+            b.setEnabled(True)
             self.answers.addWidget(b, i // cols, i % cols)
             self.boxes.append(b)
         self.progress.state = self.state
@@ -339,6 +342,7 @@ class QuizApp(QWidget):
             return
         cs_random = set(i for i, orig_i in self.answer_mapping.items() if orig_i in self.current["correct"])
         for i, b in enumerate(self.boxes):
+            b.setEnabled(False)
             if i in cs_random and i in self.selected:
                 b.mark_correct()
             elif i in cs_random and i not in self.selected:
