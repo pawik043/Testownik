@@ -243,10 +243,16 @@ class QuizApp(QWidget):
         self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.reset_session)
         self.timer_label = QLabel("0 min 00 sec"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
         self.counter_label = QLabel("Correct: 0  Partial: 0  Wrong: 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
+        self.mastery_label = QLabel("0 / 0"); self.mastery_label.setAlignment(Qt.AlignCenter); self.mastery_label.setFont(QFont("Helvetica",16,QFont.Bold))
         self.progress = ProgressWidget(None, self.counter_label)
-        self.left.addWidget(self.return_btn); self.left.addWidget(self.reset_btn)
-        self.left.addStretch(); self.left.addWidget(self.timer_label); self.left.addStretch()
-        self.left.addWidget(self.progress); self.left.addStretch()
+        self.left.addWidget(self.return_btn)
+        self.left.addWidget(self.reset_btn)
+        self.left.addStretch()
+        self.left.addWidget(self.timer_label)
+        self.left.addStretch()
+        self.left.addWidget(self.mastery_label)
+        self.left.addWidget(self.counter_label)
+        self.left.addWidget(self.progress)
 
         line = QFrame(); line.setFrameShape(QFrame.VLine); line.setStyleSheet("color:#3a3a3c")
         main_layout.addLayout(self.left,1); main_layout.addWidget(line)
@@ -274,19 +280,29 @@ class QuizApp(QWidget):
         if os.path.exists(self.config_path):
             if QMessageBox.question(self,"Resume","Continue?",QMessageBox.Yes|QMessageBox.No)==QMessageBox.Yes:
                 with open(self.config_path) as f: self.state=json.load(f); self.queue=self.state["queue"]
+                if "required_correct" not in self.state:
+                    self.state["required_correct"] = {q["file"]: 1 for q in self.questions}
+                if "correct_streak" not in self.state:
+                    self.state["correct_streak"] = {q["file"]: 0 for q in self.questions}
             else: os.remove(self.config_path); self.new_session()
         else: self.new_session()
         self.stack.setCurrentWidget(self.quiz_widget); self.timer.start(1000)
+        self.update_mastery_label()
         self.progress.state = self.state; self.progress.update()
         self.next_q()
 
     def new_session(self):
         reps,_=QInputDialog.getInt(self,"Reps","Repetitions",1,1,5)
-        self.state={"status":{q["file"]:"unanswered" for q in self.questions}}; self.queue=[]
+        self.state={
+            "status": {q["file"]: "unanswered" for q in self.questions},
+            "required_correct": {q["file"]: reps for q in self.questions},
+            "correct_streak": {q["file"]: 0 for q in self.questions}
+        }; self.queue=[]
         for q in self.questions: self.queue += [q["file"]]*reps
         random.shuffle(self.queue); self.correct_count=0
         self.start_time = time.time()
         self.update_timer()
+        self.update_mastery_label()
         self.progress.state = self.state; self.progress.update()
 
     def reset_session(self):
@@ -294,8 +310,16 @@ class QuizApp(QWidget):
         self.waiting_next = False
         self.submit_btn.setText("Check")
         self.selected.clear()
+        self.update_mastery_label()
         if self.queue:
             self.next_q()
+
+    def update_mastery_label(self):
+        required = self.state.get("required_correct", {})
+        streaks = self.state.get("correct_streak", {})
+        total = len(required)
+        mastered = sum(1 for f, needed in required.items() if streaks.get(f, 0) >= needed)
+        self.mastery_label.setText(f"{mastered} / {total}")
 
     def load_questions(self,folder):
         out=[]
@@ -352,12 +376,17 @@ class QuizApp(QWidget):
         f = self.current["file"]
         if self.selected == cs_random:
             self.state["status"][f] = "correct"
+            needed = self.state.get("required_correct", {}).get(f, 1)
+            current_streak = self.state.get("correct_streak", {}).get(f, 0)
+            if current_streak < needed:
+                self.state["correct_streak"][f] = current_streak + 1
         elif self.selected and self.selected.issubset(cs_random):
             self.state["status"][f] = "partial"
             [self.queue.insert(random.randint(len(self.queue)//2, len(self.queue)), f) for _ in range(2)]
         else:
             self.state["status"][f] = "wrong"
             [self.queue.insert(random.randint(len(self.queue)//2, len(self.queue)), f) for _ in range(2)]
+        self.update_mastery_label()
         self.waiting_next = True
         self.submit_btn.setText("Next")
         self.save()
