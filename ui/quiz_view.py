@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QFrame, QGridLayout
+    QFrame, QGridLayout, QSizePolicy
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -56,12 +56,44 @@ class QuizView(QWidget):
 
         # ---------- Right panel ----------
         self.right = QVBoxLayout()
-        self.right.setSpacing(20)
+        self.right.setSpacing(18)
+
+        # Question box
+        self.question_box = QFrame()
+        self.question_box.setStyleSheet("""
+            QFrame {
+                background: #1c1c1e;
+                border: 1px solid #3a3a3c;
+                border-radius: 24px;
+            }
+        """)
+        self.question_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+        question_layout = QVBoxLayout(self.question_box)
+        question_layout.setContentsMargins(28, 28, 28, 28)
+        question_layout.setSpacing(0)
 
         self.question_label = QLabel("Question")
         self.question_label.setWordWrap(True)
         self.question_label.setAlignment(Qt.AlignCenter)
         self.question_label.setFont(QFont("Helvetica", 22, QFont.Bold))
+        self.question_label.setStyleSheet("color: #f2f2f7;")
+        question_layout.addWidget(self.question_label)
+
+        # Answers box
+        self.answers_box = QFrame()
+        self.answers_box.setStyleSheet("""
+            QFrame {
+                background: #1c1c1e;
+                border: 1px solid #3a3a3c;
+                border-radius: 24px;
+            }
+        """)
+        self.answers_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        answers_layout = QVBoxLayout(self.answers_box)
+        answers_layout.setContentsMargins(24, 24, 24, 24)
+        answers_layout.setSpacing(18)
 
         self.answers = QGridLayout()
         self.answers.setSpacing(12)
@@ -71,13 +103,12 @@ class QuizView(QWidget):
         self.submit_btn = QPushButton("Check")
         self.submit_btn.clicked.connect(on_submit)
 
-        self.right.addStretch()
-        self.right.addWidget(self.question_label)
-        self.right.addSpacing(10)
-        self.right.addLayout(self.answers)
-        self.right.addSpacing(20)
-        self.right.addWidget(self.submit_btn)
-        self.right.addStretch()
+        answers_layout.addLayout(self.answers)
+        answers_layout.addSpacing(8)
+        answers_layout.addWidget(self.submit_btn)
+
+        self.right.addWidget(self.question_box)
+        self.right.addWidget(self.answers_box, 1)
 
         root.addLayout(self.left, 1)
         root.addWidget(line)
