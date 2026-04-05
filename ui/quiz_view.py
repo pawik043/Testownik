@@ -72,12 +72,13 @@ class QuizView(QWidget):
         question_layout = QVBoxLayout(self.question_box)
         question_layout.setContentsMargins(28, 28, 28, 28)
         question_layout.setSpacing(0)
+        self.question_box.setFrameShape(QFrame.NoFrame)
 
         self.question_label = QLabel("Question")
         self.question_label.setWordWrap(True)
         self.question_label.setAlignment(Qt.AlignCenter)
         self.question_label.setFont(QFont("Helvetica", 22, QFont.Bold))
-        self.question_label.setStyleSheet("color: #f2f2f7;")
+        self.question_label.setStyleSheet("color: #f2f2f7; background: transparent; border: none; padding: 0px; margin: 0px;")
         question_layout.addWidget(self.question_label)
 
         # Answers box
