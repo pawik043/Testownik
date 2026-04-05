@@ -84,6 +84,7 @@ class AnswerBox(QFrame):
         self.callback = callback
         self.selected = False
         self.setStyleSheet(self.default_style())
+        self.setMinimumHeight(110)
 
         layout = QVBoxLayout(); layout.setContentsMargins(0,0,0,0); layout.setSpacing(0)
         self.label = QLabel(text)
@@ -260,7 +261,7 @@ class QuizApp(QWidget):
         self.right = QVBoxLayout(); main_layout.addLayout(self.right,3)
         self.question_label = QLabel(); self.question_label.setWordWrap(True); self.question_label.setAlignment(Qt.AlignCenter)
         self.question_label.setFont(QFont("Helvetica",20,QFont.Bold)); self.question_label.setStyleSheet("color:#e5e5e7; margin-bottom:15px;")
-        self.answers = QGridLayout(); self.answers.setSpacing(12)
+        self.answers = QGridLayout(); self.answers.setSpacing(12); self.answers.setColumnStretch(0, 1); self.answers.setColumnStretch(1, 1)
         self.submit_btn = QPushButton("Check"); self.submit_btn.clicked.connect(self.check_or_next)
         self.right.addWidget(self.question_label); self.right.addLayout(self.answers); self.right.addWidget(self.submit_btn)
         self.stack.addWidget(self.quiz_widget)
@@ -402,7 +403,15 @@ class QuizApp(QWidget):
         for i, (_, a) in enumerate(paired):
             b = AnswerBox(a, i, self.on_select)
             b.setEnabled(True)
-            self.answers.addWidget(b, i // cols, i % cols)
+
+            row = i // cols
+            col = i % cols
+
+            if cols == 2 and len(paired) % 2 == 1 and i == len(paired) - 1:
+                self.answers.addWidget(b, row, 0, 1, 2, alignment=Qt.AlignHCenter)
+            else:
+                self.answers.addWidget(b, row, col)
+
             self.boxes.append(b)
         self.progress.state = self.state
         self.progress.update()
