@@ -8,3 +8,6 @@ SampleData/*
 ### Config Files
 
 recent.json
+
+*.zip
+*.rar
