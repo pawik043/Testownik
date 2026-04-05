@@ -145,7 +145,7 @@ class QuizApp(QWidget):
         self.left = QVBoxLayout()
         self.return_btn = QPushButton("Return to Main Menu"); self.return_btn.clicked.connect(lambda: self.stack.setCurrentWidget(self.main_menu))
         self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.new_session)
-        self.timer_label = QLabel("0s"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
+        self.timer_label = QLabel("0 min 00 sec"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
         self.counter_label = QLabel("0 / 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
         self.progress = ProgressWidget(None, self.counter_label)
         self.left.addWidget(self.return_btn); self.left.addWidget(self.reset_btn)
@@ -180,7 +180,7 @@ class QuizApp(QWidget):
                 with open(self.config_path) as f: self.state=json.load(f); self.queue=self.state["queue"]
             else: os.remove(self.config_path); self.new_session()
         else: self.new_session()
-        self.stack.setCurrentWidget(self.quiz_widget); self.start_time=time.time(); self.timer.start(1000)
+        self.stack.setCurrentWidget(self.quiz_widget); self.timer.start(1000)
         self.next_q()
 
     def new_session(self):
@@ -188,6 +188,8 @@ class QuizApp(QWidget):
         self.state={"status":{q["file"]:"new" for q in self.questions}}; self.queue=[]
         for q in self.questions: self.queue += [q["file"]]*reps
         random.shuffle(self.queue); self.correct_count=0
+        self.start_time = time.time()
+        self.update_timer()
 
     def load_questions(self,folder):
         out=[]
@@ -212,28 +214,48 @@ class QuizApp(QWidget):
     def render(self):
         self.question_label.setText(self.current["question"])
         for i in reversed(range(self.answers.count())): self.answers.itemAt(i).widget().setParent(None)
-        self.boxes=[]
-        answers = self.current["answers"][:]; random.shuffle(answers)  # ensure shuffle each render
-        cols=2 if len(answers)>2 else 1
-        for i,a in enumerate(answers): b=AnswerBox(a,i,self.on_select); self.answers.addWidget(b,i//cols,i%cols); self.boxes.append(b)
-        self.progress.state=self.state; self.progress.update()
+        self.boxes = []
+        paired = list(enumerate(self.current["answers"]))
+        random.shuffle(paired)
+        self.answer_mapping = {i: orig_i for i, (orig_i, _) in enumerate(paired)}
+
+        cols = 2 if len(paired) > 2 else 1
+        for i, (_, a) in enumerate(paired):
+            b = AnswerBox(a, i, self.on_select)
+            self.answers.addWidget(b, i // cols, i % cols)
+            self.boxes.append(b)
+        self.progress.state = self.state
+        self.progress.update()
 
     def on_select(self,i,s): self.selected.add(i) if s else self.selected.discard(i)
 
     def check_or_next(self):
-        if self.waiting_next: self.next_q(); return
-        ans_map={b.label.text():i for i,b in enumerate(self.boxes)}
-        cs_random=set(ans_map[self.current["answers"][i]] for i in self.current["correct"])
-        for i,b in enumerate(self.boxes):
-            if i in cs_random: b.mark_correct()
-            elif i in cs_random and i not in self.selected: b.mark_missing()
-            elif i not in cs_random and i in self.selected: b.mark_wrong()
-        f=self.current["file"]
-        if self.selected==cs_random: self.state["status"][f]="correct"
-        else: self.state["status"][f]="wrong"; [self.queue.insert(random.randint(len(self.queue)//2,len(self.queue)),f) for _ in range(2)]
-        self.waiting_next=True; self.submit_btn.setText("Next"); self.save()
+        if self.waiting_next:
+            self.next_q()
+            return
+        cs_random = set(i for i, orig_i in self.answer_mapping.items() if orig_i in self.current["correct"])
+        for i, b in enumerate(self.boxes):
+            if i in cs_random and i in self.selected:
+                b.mark_correct()
+            elif i in cs_random and i not in self.selected:
+                b.mark_missing()
+            elif i not in cs_random and i in self.selected:
+                b.mark_wrong()
+        f = self.current["file"]
+        if self.selected == cs_random:
+            self.state["status"][f] = "correct"
+        else:
+            self.state["status"][f] = "wrong"
+            [self.queue.insert(random.randint(len(self.queue)//2, len(self.queue)), f) for _ in range(2)]
+        self.waiting_next = True
+        self.submit_btn.setText("Next")
+        self.save()
 
-    def update_timer(self): self.timer_label.setText(f"{int(time.time()-self.start_time)}s")
+    def update_timer(self):
+        elapsed = int(time.time() - self.start_time)
+        minutes = elapsed // 60
+        seconds = elapsed % 60
+        self.timer_label.setText(f"{minutes} min {seconds:02d} sec")
 
     def finish(self):
         if os.path.exists(self.config_path): os.remove(self.config_path)
