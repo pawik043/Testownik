@@ -238,7 +238,7 @@ class QuizApp(QWidget):
 
         self.left = QVBoxLayout()
         self.return_btn = QPushButton("Return to Main Menu"); self.return_btn.clicked.connect(lambda: self.stack.setCurrentWidget(self.main_menu))
-        self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.new_session)
+        self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.reset_session)
         self.timer_label = QLabel("0 min 00 sec"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
         self.counter_label = QLabel("Correct: 0  Partial: 0  Wrong: 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
         self.progress = ProgressWidget(None, self.counter_label)
@@ -286,6 +286,14 @@ class QuizApp(QWidget):
         self.start_time = time.time()
         self.update_timer()
         self.progress.state = self.state; self.progress.update()
+
+    def reset_session(self):
+        self.new_session()
+        self.waiting_next = False
+        self.submit_btn.setText("Check")
+        self.selected.clear()
+        if self.queue:
+            self.next_q()
 
     def load_questions(self,folder):
         out=[]
