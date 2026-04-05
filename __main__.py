@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QInputDialog
 )
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QPainter, QColor, QFont
+from PySide6.QtGui import QPainter, QColor, QFont, QPainterPath
 
 CONFIG_NAME = "session.json"
 RECENT_FILE = "recent.json"
@@ -21,34 +21,60 @@ class ProgressWidget(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        if not self.state: return
+        if not self.state:
+            return
 
         statuses = list(self.state["status"].values())
         total = len(statuses)
-        if total==0: return
-        correct = sum(1 for s in statuses if s=='correct')
-        wrong = sum(1 for s in statuses if s=='wrong')
-        remaining = total - correct - wrong
+        if total == 0:
+            return
+
+        correct = sum(1 for s in statuses if s == 'correct')
+        partial = sum(1 for s in statuses if s == 'partial')
+        wrong = sum(1 for s in statuses if s == 'wrong')
+        answered = correct + partial + wrong
 
         w = self.width()
         h = self.height()
+        radius = h / 2
 
-        # Draw green (correct) from left
-        painter.setBrush(QColor("#30d158"))
         painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(0,0, w*correct/total, h, 10,10)
 
-        # Draw red (wrong) from right
-        painter.setBrush(QColor("#ff453a"))
-        painter.drawRoundedRect(w - w*wrong/total,0, w*wrong/total, h, 10,10)
+        # Smooth rounded background bar
+        painter.setBrush(QColor("#3a3a3c"))
+        painter.drawRoundedRect(0, 0, w, h, radius, radius)
 
-        # Draw yellow (remaining) in middle
-        painter.setBrush(QColor("#ffd60a"))
-        painter.drawRoundedRect(w*correct/total,0, w*remaining/total, h, 10,10)
+        # Clip everything to the rounded outer shape so inner sections stay smooth
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, w, h, radius, radius)
+        painter.setClipPath(path)
+
+        if answered > 0:
+            correct_w = w * correct / answered
+            partial_w = w * partial / answered
+            wrong_w = w * wrong / answered
+
+            # Draw progress sections across the full bar, normalized by answered questions only
+            x = 0
+            if correct_w > 0:
+                painter.setBrush(QColor("#30d158"))
+                painter.drawRect(x, 0, correct_w, h)
+                x += correct_w
+
+            if partial_w > 0:
+                painter.setBrush(QColor("#ff9f0a"))
+                painter.drawRect(x, 0, partial_w, h)
+                x += partial_w
+
+            if wrong_w > 0:
+                painter.setBrush(QColor("#ff453a"))
+                painter.drawRect(x, 0, w - x, h)
+
+        painter.setClipping(False)
 
         if self.counter_label:
-            self.counter_label.setText(f"Known: {correct}/{total}")
-            self.counter_label.setFont(QFont("Helvetica",12,QFont.Bold))
+            self.counter_label.setText(f"Correct: {correct}  Partial: {partial}  Wrong: {wrong}")
+            self.counter_label.setFont(QFont("Helvetica", 12, QFont.Bold))
 
 # ---------- Answer Box ----------
 class AnswerBox(QFrame):
@@ -214,7 +240,7 @@ class QuizApp(QWidget):
         self.return_btn = QPushButton("Return to Main Menu"); self.return_btn.clicked.connect(lambda: self.stack.setCurrentWidget(self.main_menu))
         self.reset_btn = QPushButton("Reset Session"); self.reset_btn.clicked.connect(self.new_session)
         self.timer_label = QLabel("0 min 00 sec"); self.timer_label.setAlignment(Qt.AlignCenter); self.timer_label.setFont(QFont("Helvetica",16,QFont.Bold))
-        self.counter_label = QLabel("0 / 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
+        self.counter_label = QLabel("Correct: 0  Partial: 0  Wrong: 0"); self.counter_label.setAlignment(Qt.AlignCenter); self.counter_label.setFont(QFont("Helvetica",14,QFont.Bold))
         self.progress = ProgressWidget(None, self.counter_label)
         self.left.addWidget(self.return_btn); self.left.addWidget(self.reset_btn)
         self.left.addStretch(); self.left.addWidget(self.timer_label); self.left.addStretch()
@@ -249,15 +275,17 @@ class QuizApp(QWidget):
             else: os.remove(self.config_path); self.new_session()
         else: self.new_session()
         self.stack.setCurrentWidget(self.quiz_widget); self.timer.start(1000)
+        self.progress.state = self.state; self.progress.update()
         self.next_q()
 
     def new_session(self):
         reps,_=QInputDialog.getInt(self,"Reps","Repetitions",1,1,5)
-        self.state={"status":{q["file"]:"new" for q in self.questions}}; self.queue=[]
+        self.state={"status":{q["file"]:"unanswered" for q in self.questions}}; self.queue=[]
         for q in self.questions: self.queue += [q["file"]]*reps
         random.shuffle(self.queue); self.correct_count=0
         self.start_time = time.time()
         self.update_timer()
+        self.progress.state = self.state; self.progress.update()
 
     def load_questions(self,folder):
         out=[]
@@ -312,6 +340,9 @@ class QuizApp(QWidget):
         f = self.current["file"]
         if self.selected == cs_random:
             self.state["status"][f] = "correct"
+        elif self.selected and self.selected.issubset(cs_random):
+            self.state["status"][f] = "partial"
+            [self.queue.insert(random.randint(len(self.queue)//2, len(self.queue)), f) for _ in range(2)]
         else:
             self.state["status"][f] = "wrong"
             [self.queue.insert(random.randint(len(self.queue)//2, len(self.queue)), f) for _ in range(2)]
