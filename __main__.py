@@ -268,6 +268,7 @@ class QuizApp(QWidget):
         self.questions=[]; self.queue=[]; self.state={}
         self.current=None; self.selected=set(); self.boxes=[]
         self.correct_count=0; self.waiting_next=False
+        self.invalid_question_files=[]
         self.timer=QTimer(); self.timer.timeout.connect(self.update_timer); self.start_time=None
 
     # ---------- Quiz logic ----------
@@ -277,6 +278,15 @@ class QuizApp(QWidget):
         self.save_recent(folder)
         self.config_path=os.path.join(folder,CONFIG_NAME)
         self.questions=self.load_questions(folder)
+        if self.invalid_question_files:
+            QMessageBox.warning(
+                self,
+                "Invalid question files",
+                "The following .txt files were skipped because they have invalid format:\n\n" + "\n".join(self.invalid_question_files)
+            )
+        if not self.questions:
+            QMessageBox.warning(self, "No valid questions", "No valid question files were found in this folder.")
+            return
         if os.path.exists(self.config_path):
             if QMessageBox.question(self,"Resume","Continue?",QMessageBox.Yes|QMessageBox.No)==QMessageBox.Yes:
                 with open(self.config_path) as f: self.state=json.load(f); self.queue=self.state["queue"]
@@ -321,18 +331,57 @@ class QuizApp(QWidget):
         mastered = sum(1 for f, needed in required.items() if streaks.get(f, 0) >= needed)
         self.mastery_label.setText(f"{mastered} / {total}")
 
-    def load_questions(self,folder):
-        out=[]
+    def load_questions(self, folder):
+        out = []
+        self.invalid_question_files = []
         for f in os.listdir(folder):
-            if f.endswith(".txt"):
-                with open(os.path.join(folder,f),encoding="utf-8") as fi: lines=fi.readlines()
-                q=""; a=[]; c=[]
-                for l in lines:
-                    l=l.strip()
-                    if l.startswith("?"): q=l[1:].strip()
-                    elif l.startswith("*"): a.append(l[1:].strip()); c.append(len(a)-1)
-                    elif l.startswith("-"): a.append(l[1:].strip())
-                out.append({"file":f,"question":q,"answers":a,"correct":c})
+            if not f.endswith(".txt"):
+                continue
+
+            path = os.path.join(folder, f)
+            try:
+                with open(path, encoding="utf-8") as fi:
+                    lines = fi.readlines()
+            except Exception:
+                self.invalid_question_files.append(f"{f} (could not be read)")
+                continue
+
+            q = ""
+            a = []
+            c = []
+            invalid = False
+
+            for l in lines:
+                l = l.strip()
+                if not l:
+                    continue
+                if l.startswith("?"):
+                    if q:
+                        invalid = True
+                        break
+                    q = l[1:].strip()
+                elif l.startswith("*"):
+                    answer = l[1:].strip()
+                    if not answer:
+                        invalid = True
+                        break
+                    a.append(answer)
+                    c.append(len(a) - 1)
+                elif l.startswith("-"):
+                    answer = l[1:].strip()
+                    if not answer:
+                        invalid = True
+                        break
+                    a.append(answer)
+                else:
+                    invalid = True
+                    break
+
+            if invalid or not q or not a or not c:
+                self.invalid_question_files.append(f)
+                continue
+
+            out.append({"file": f, "question": q, "answers": a, "correct": c})
         return out
 
     def next_q(self):
