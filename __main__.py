@@ -98,7 +98,7 @@ class AnswerBox(QFrame):
         QFrame {
             background: #2c2c2e;
             border-radius: 22px;
-            border: 1px solid #2c2c2e;
+            border: 2px solid transparent;
             padding: 16px;
         }
         QLabel {
@@ -144,7 +144,7 @@ class AnswerBox(QFrame):
         QFrame {
             background: #30d158;
             border-radius: 22px;
-            border: none;
+            border: 2px solid transparent;
             padding: 16px;
         }
         QLabel {
@@ -162,7 +162,7 @@ class AnswerBox(QFrame):
         QFrame {
             background: #ff453a;
             border-radius: 22px;
-            border: none;
+            border: 2px solid transparent;
             padding: 16px;
         }
         QLabel {
@@ -180,7 +180,7 @@ class AnswerBox(QFrame):
         QFrame {
             background: #ffd60a;
             border-radius: 22px;
-            border: none;
+            border: 2px solid transparent;
             padding: 16px;
         }
         QLabel {
