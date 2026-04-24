@@ -482,7 +482,9 @@ class QuizApp(QWidget):
             self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
 
         can_classify = self.flashcard_showing_back and not self.flashcard_waiting_next
+        can_reveal = not self.flashcard_showing_back and not self.flashcard_waiting_next
         self.flashcard_view.card.setEnabled(not self.flashcard_waiting_next)
+        self.flashcard_view.reveal_btn.setEnabled(can_reveal)
         self.flashcard_view.known_btn.setEnabled(can_classify)
         self.flashcard_view.review_btn.setEnabled(can_classify)
         self.flashcard_view.next_btn.setEnabled(self.flashcard_waiting_next)

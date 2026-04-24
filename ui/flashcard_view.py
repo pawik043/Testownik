@@ -110,8 +110,11 @@ class FlashcardView(QWidget):
 
         self.card = FlashcardTile(on_flip)
 
-        self.actions = QHBoxLayout()
-        self.actions.setSpacing(12)
+        self.reveal_btn = QPushButton("Check")
+        self.reveal_btn.clicked.connect(on_flip)
+
+        self.classification_actions = QHBoxLayout()
+        self.classification_actions.setSpacing(12)
 
         self.known_btn = QPushButton("I Knew It")
         self.known_btn.clicked.connect(on_known)
@@ -122,12 +125,13 @@ class FlashcardView(QWidget):
         self.next_btn = QPushButton("Next")
         self.next_btn.clicked.connect(on_next)
 
-        self.actions.addWidget(self.known_btn)
-        self.actions.addWidget(self.review_btn)
-        self.actions.addWidget(self.next_btn)
+        self.classification_actions.addWidget(self.known_btn)
+        self.classification_actions.addWidget(self.review_btn)
 
         card_layout.addWidget(self.card, 1)
-        card_layout.addLayout(self.actions)
+        card_layout.addWidget(self.reveal_btn)
+        card_layout.addLayout(self.classification_actions)
+        card_layout.addWidget(self.next_btn)
 
         self.right.addWidget(self.header_box)
         self.right.addWidget(self.card_box, 1)
