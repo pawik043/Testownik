@@ -1,4 +1,5 @@
 from .question_loader import load_questions
+from .quiz_interaction_service import QuizInteractionService
 from .quiz_session_service import QuizSessionService
 from .session_manager import (
     delete_file,

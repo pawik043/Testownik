@@ -1,5 +1,4 @@
 import os
-import random
 import time
 
 from PySide6.QtCore import QTimer, Qt
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
 from .ui import MainMenu, QuizView
 from .widgets import AnswerBox
 from .services import (
+    QuizInteractionService,
     QuizSessionService,
     delete_file,
     read_text_file,
@@ -32,11 +32,9 @@ class QuizApp(QWidget):
         self.setWindowTitle("Testownik")
 
         self.session = QuizSessionService()
-        self.answer_mapping = {}
-        self.selected = set()
+        self.interaction = QuizInteractionService()
         self.boxes = []
         self.invalid_question_files = []
-        self.waiting_next = False
         self.start_time = time.time()
         self.config_path = ""
         self.current_folder = ""
@@ -164,9 +162,8 @@ class QuizApp(QWidget):
 
     def reset_session(self):
         self.new_session()
-        self.waiting_next = False
+        self.interaction.reset()
         self.quiz_view.submit_btn.setText("Check")
-        self.selected.clear()
 
         if self.session.has_pending_questions():
             self.next_q()
@@ -192,8 +189,7 @@ class QuizApp(QWidget):
     # ---------- Question flow ----------
 
     def next_q(self):
-        self.selected.clear()
-        self.waiting_next = False
+        self.interaction.reset()
         self.quiz_view.submit_btn.setText("Check")
 
         current = self.session.next_question()
@@ -205,7 +201,8 @@ class QuizApp(QWidget):
         self.save()
 
     def render(self):
-        self.quiz_view.question_label.setText(self.session.current["question"])
+        round_data = self.interaction.start_round(self.session.current)
+        self.quiz_view.question_label.setText(round_data["question"])
 
         for i in reversed(range(self.quiz_view.answers.count())):
             item = self.quiz_view.answers.itemAt(i)
@@ -214,20 +211,17 @@ class QuizApp(QWidget):
                 widget.setParent(None)
 
         self.boxes = []
-        paired = list(enumerate(self.session.current["answers"]))
-        random.shuffle(paired)
-        self.answer_mapping = {i: orig_i for i, (orig_i, _) in enumerate(paired)}
+        cols = round_data["columns"]
+        answer_count = len(round_data["answers"])
 
-        cols = 2 if len(paired) > 2 else 1
-
-        for i, (_, answer_text) in enumerate(paired):
+        for i, answer_text in enumerate(round_data["answers"]):
             box = AnswerBox(answer_text, i, self.on_select)
             box.setEnabled(True)
 
             row = i // cols
             col = i % cols
 
-            if cols == 2 and len(paired) % 2 == 1 and i == len(paired) - 1:
+            if cols == 2 and answer_count % 2 == 1 and i == answer_count - 1:
                 self.quiz_view.answers.addWidget(box, row, 0, 1, 2, alignment=Qt.AlignHCenter)
             else:
                 self.quiz_view.answers.addWidget(box, row, col)
@@ -238,40 +232,35 @@ class QuizApp(QWidget):
         self.quiz_view.progress.update()
 
     def on_select(self, index, is_selected):
-        if is_selected:
-            self.selected.add(index)
-        else:
-            self.selected.discard(index)
+        self.interaction.update_selection(index, is_selected)
 
     def check_or_next(self):
-        if self.waiting_next:
+        if self.interaction.waiting_next:
             self.next_q()
             return
 
         if not self.session.current:
             return
 
-        result = self.session.evaluate_answer(self.answer_mapping, self.selected)
+        result = self.interaction.submit(self.session)
         if not result:
             return
 
-        correct_set = result["correct_set"]
-
         for i, box in enumerate(self.boxes):
             box.setEnabled(False)
+            feedback = result["feedback"].get(i, "neutral")
 
-            if i in correct_set and i in self.selected:
+            if feedback == "correct":
                 box.mark_correct()
-            elif i in correct_set and i not in self.selected:
+            elif feedback == "missing":
                 box.mark_missing()
-            elif i not in correct_set and i in self.selected:
+            elif feedback == "wrong":
                 box.mark_wrong()
 
         self.quiz_view.progress.state = self.session.serialize_state()
         self.quiz_view.progress.update()
         self.update_mastery_label()
 
-        self.waiting_next = True
         self.quiz_view.submit_btn.setText("Next")
         self.save()
 
