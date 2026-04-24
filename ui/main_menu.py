@@ -87,7 +87,31 @@ class MainMenu(QWidget):
             button.setMinimumHeight(88)
             button.setCursor(Qt.PointingHandCursor)
             button.setFocusPolicy(Qt.NoFocus)
-            button.setStyleSheet(self._button_style())
+
+        self.select_btn.setStyleSheet(
+            self._button_style(
+                background="#2f3644",
+                border="#495266",
+                hover_background="#394155",
+                hover_border="#5b6680",
+            )
+        )
+        self.flashcards_btn.setStyleSheet(
+            self._button_style(
+                background="#2d3338",
+                border="#445057",
+                hover_background="#373f45",
+                hover_border="#56636b",
+            )
+        )
+        self.recent_btn.setStyleSheet(
+            self._button_style(
+                background="#262628",
+                border="#37373b",
+                hover_background="#2f2f33",
+                hover_border="#47474d",
+            )
+        )
 
         hero_layout.addStretch()
         hero_layout.addWidget(self.title)
@@ -124,27 +148,33 @@ class MainMenu(QWidget):
         for button in self.buttons:
             button.setFont(QFont("Helvetica", button_size, QFont.Bold))
 
-    def _button_style(self) -> str:
-        return """
-        QPushButton {
-            background: #2c2c2e;
+    def _button_style(
+        self,
+        background: str,
+        border: str,
+        hover_background: str,
+        hover_border: str,
+    ) -> str:
+        return f"""
+        QPushButton {{
+            background: {background};
             color: #f2f2f7;
-            border: 1px solid #3a3a3c;
+            border: 1px solid {border};
             border-radius: 22px;
             padding: 20px 24px;
             text-align: center;
             outline: none;
-        }
-        QPushButton:hover {
-            background: #343438;
-            border: 1px solid #4a4a4e;
-        }
-        QPushButton:focus {
-            background: #2c2c2e;
-            border: 1px solid #3a3a3c;
+        }}
+        QPushButton:hover {{
+            background: {hover_background};
+            border: 1px solid {hover_border};
+        }}
+        QPushButton:focus {{
+            background: {background};
+            border: 1px solid {border};
             outline: none;
-        }
-        QPushButton:pressed {
+        }}
+        QPushButton:pressed {{
             background: #242427;
-        }
+        }}
         """
