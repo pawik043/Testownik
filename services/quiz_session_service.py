@@ -1,6 +1,8 @@
 import random
 
 from ..models import QuizState
+from .question_loader import load_questions
+from .session_manager import load_session, save_session
 
 
 class QuizSessionService:
@@ -18,10 +20,26 @@ class QuizSessionService:
         self.current = None
         self.state = None
 
+    def load_questions_from_folder(self, folder: str):
+        questions, invalid_files = load_questions(folder)
+        self.configure_questions(questions)
+        return invalid_files
+
+    def has_questions(self) -> bool:
+        return bool(self.questions)
+
     def restore(self, session_data: dict):
         self.state = QuizState.from_dict(session_data, self.questions)
         self.queue = list(session_data.get("queue", []))
         self.current = None
+
+    def restore_from_path(self, config_path: str) -> bool:
+        session_data = load_session(config_path)
+        if not session_data:
+            return False
+
+        self.restore(session_data)
+        return True
 
     def start_new(self, reps: int):
         self.state = QuizState(self.questions, reps)
@@ -95,6 +113,9 @@ class QuizSessionService:
         payload = self.serialize_state()
         payload["queue"] = list(self.queue)
         return payload
+
+    def save_to_path(self, config_path: str):
+        save_session(config_path, self.serialize_state(), self.queue)
 
     def mastered_count(self) -> int:
         if not self.state:

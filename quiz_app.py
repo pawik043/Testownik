@@ -14,7 +14,12 @@ from PySide6.QtWidgets import (
 
 from .ui import MainMenu, QuizView
 from .widgets import AnswerBox
-from .services import QuizSessionService, load_questions, load_session, save_session
+from .services import (
+    QuizSessionService,
+    delete_file,
+    read_text_file,
+    write_text_file,
+)
 
 
 CONFIG_NAME = "quiz_state.json"
@@ -69,10 +74,8 @@ class QuizApp(QWidget):
             QMessageBox.information(self, "No recent folder", "No recent folder saved yet.")
             return
 
-        try:
-            with open(RECENT_FILE, "r", encoding="utf-8") as f:
-                folder = f.read().strip()
-        except Exception:
+        folder = read_text_file(RECENT_FILE)
+        if folder is None:
             QMessageBox.warning(self, "Error", "Could not read recent folder.")
             return
 
@@ -83,11 +86,7 @@ class QuizApp(QWidget):
         self.load_folder(folder)
 
     def save_recent(self, folder: str):
-        try:
-            with open(RECENT_FILE, "w", encoding="utf-8") as f:
-                f.write(folder)
-        except Exception:
-            pass
+        write_text_file(RECENT_FILE, folder)
 
     # ---------- Session / Folder ----------
 
@@ -101,8 +100,7 @@ class QuizApp(QWidget):
         self.save_recent(folder)
         self.config_path = os.path.join(folder, CONFIG_NAME)
 
-        questions, self.invalid_question_files = load_questions(folder)
-        self.session.configure_questions(questions)
+        self.invalid_question_files = self.session.load_questions_from_folder(folder)
 
         if self.invalid_question_files:
             QMessageBox.warning(
@@ -112,7 +110,7 @@ class QuizApp(QWidget):
                 + "\n".join(self.invalid_question_files),
             )
 
-        if not self.session.questions:
+        if not self.session.has_questions():
             QMessageBox.warning(
                 self,
                 "No valid questions",
@@ -120,7 +118,6 @@ class QuizApp(QWidget):
             )
             return
 
-        session_data = None
         if os.path.exists(self.config_path):
             answer = QMessageBox.question(
                 self,
@@ -129,15 +126,11 @@ class QuizApp(QWidget):
                 QMessageBox.Yes | QMessageBox.No,
             )
             if answer == QMessageBox.Yes:
-                session_data = load_session(self.config_path)
+                if not self.session.restore_from_path(self.config_path):
+                    self.new_session()
             else:
-                try:
-                    os.remove(self.config_path)
-                except Exception:
-                    pass
-
-        if session_data:
-            self.session.restore(session_data)
+                delete_file(self.config_path)
+                self.new_session()
         else:
             self.new_session()
 
@@ -181,11 +174,7 @@ class QuizApp(QWidget):
     def save(self):
         if not self.session.state or not self.config_path:
             return
-        save_session(
-            self.config_path,
-            self.session.serialize_state(),
-            self.session.queue,
-        )
+        self.session.save_to_path(self.config_path)
 
     # ---------- Timer / Labels ----------
 

@@ -2,6 +2,37 @@ import json
 import os
 
 
+def read_text_file(path: str):
+    if not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+
+def write_text_file(path: str, content: str) -> bool:
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return True
+    except Exception:
+        return False
+
+
+def delete_file(path: str) -> bool:
+    if not os.path.exists(path):
+        return True
+
+    try:
+        os.remove(path)
+        return True
+    except Exception:
+        return False
+
+
 def load_session(config_path: str):
     """
     Load session JSON from disk.
