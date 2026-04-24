@@ -3,7 +3,6 @@ import random
 import time
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -15,8 +14,7 @@ from PySide6.QtWidgets import (
 
 from .ui import MainMenu, QuizView
 from .widgets import AnswerBox
-from .services import load_questions, load_session, save_session
-from .models import QuizState
+from .services import QuizSessionService, load_questions, load_session, save_session
 
 
 CONFIG_NAME = "quiz_state.json"
@@ -28,9 +26,7 @@ class QuizApp(QWidget):
         super().__init__()
         self.setWindowTitle("Testownik")
 
-        self.questions = []
-        self.queue = []
-        self.current = None
+        self.session = QuizSessionService()
         self.answer_mapping = {}
         self.selected = set()
         self.boxes = []
@@ -39,7 +35,6 @@ class QuizApp(QWidget):
         self.start_time = time.time()
         self.config_path = ""
         self.current_folder = ""
-        self.state = None
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
@@ -106,7 +101,8 @@ class QuizApp(QWidget):
         self.save_recent(folder)
         self.config_path = os.path.join(folder, CONFIG_NAME)
 
-        self.questions, self.invalid_question_files = load_questions(folder)
+        questions, self.invalid_question_files = load_questions(folder)
+        self.session.configure_questions(questions)
 
         if self.invalid_question_files:
             QMessageBox.warning(
@@ -116,7 +112,7 @@ class QuizApp(QWidget):
                 + "\n".join(self.invalid_question_files),
             )
 
-        if not self.questions:
+        if not self.session.questions:
             QMessageBox.warning(
                 self,
                 "No valid questions",
@@ -141,12 +137,11 @@ class QuizApp(QWidget):
                     pass
 
         if session_data:
-            self.state = QuizState.from_dict(session_data, self.questions)
-            self.queue = session_data.get("queue", [])
+            self.session.restore(session_data)
         else:
             self.new_session()
 
-        self.quiz_view.progress.state = self.state.to_dict()
+        self.quiz_view.progress.state = self.session.serialize_state()
         self.quiz_view.progress.update()
         self.update_mastery_label()
 
@@ -155,7 +150,7 @@ class QuizApp(QWidget):
         self.update_timer()
         self.timer.start(1000)
 
-        if self.queue:
+        if self.session.has_pending_questions():
             self.next_q()
         else:
             self.finish_session()
@@ -165,19 +160,13 @@ class QuizApp(QWidget):
         if not ok:
             reps = 1
 
-        self.state = QuizState(self.questions, reps)
-        self.queue = []
-
-        for q in self.questions:
-            self.queue += [q["file"]] * reps
-
-        random.shuffle(self.queue)
+        self.session.start_new(reps)
 
         self.start_time = time.time()
         self.update_timer()
         self.update_mastery_label()
 
-        self.quiz_view.progress.state = self.state.to_dict()
+        self.quiz_view.progress.state = self.session.serialize_state()
         self.quiz_view.progress.update()
 
     def reset_session(self):
@@ -186,13 +175,17 @@ class QuizApp(QWidget):
         self.quiz_view.submit_btn.setText("Check")
         self.selected.clear()
 
-        if self.queue:
+        if self.session.has_pending_questions():
             self.next_q()
 
     def save(self):
-        if not self.state or not self.config_path:
+        if not self.session.state or not self.config_path:
             return
-        save_session(self.config_path, self.state.to_dict(), self.queue)
+        save_session(
+            self.config_path,
+            self.session.serialize_state(),
+            self.session.queue,
+        )
 
     # ---------- Timer / Labels ----------
 
@@ -203,12 +196,8 @@ class QuizApp(QWidget):
         self.quiz_view.timer_label.setText(f"{minutes} min {seconds:02d} sec")
 
     def update_mastery_label(self):
-        if not self.state:
-            self.quiz_view.mastery_label.setText("0 / 0")
-            return
-
-        mastered = self.state.mastered_count()
-        total = self.state.total_questions()
+        mastered = self.session.mastered_count()
+        total = self.session.total_questions()
         self.quiz_view.mastery_label.setText(f"{mastered} / {total}")
 
     # ---------- Question flow ----------
@@ -218,23 +207,16 @@ class QuizApp(QWidget):
         self.waiting_next = False
         self.quiz_view.submit_btn.setText("Check")
 
-        if not self.queue:
+        current = self.session.next_question()
+        if not current:
             self.finish_session()
             return
 
-        file_name = self.queue.pop(0)
-
-        match = next((q for q in self.questions if q["file"] == file_name), None)
-        if match is None:
-            self.next_q()
-            return
-
-        self.current = match
         self.render()
         self.save()
 
     def render(self):
-        self.quiz_view.question_label.setText(self.current["question"])
+        self.quiz_view.question_label.setText(self.session.current["question"])
 
         for i in reversed(range(self.quiz_view.answers.count())):
             item = self.quiz_view.answers.itemAt(i)
@@ -243,7 +225,7 @@ class QuizApp(QWidget):
                 widget.setParent(None)
 
         self.boxes = []
-        paired = list(enumerate(self.current["answers"]))
+        paired = list(enumerate(self.session.current["answers"]))
         random.shuffle(paired)
         self.answer_mapping = {i: orig_i for i, (orig_i, _) in enumerate(paired)}
 
@@ -263,7 +245,7 @@ class QuizApp(QWidget):
 
             self.boxes.append(box)
 
-        self.quiz_view.progress.state = self.state.to_dict()
+        self.quiz_view.progress.state = self.session.serialize_state()
         self.quiz_view.progress.update()
 
     def on_select(self, index, is_selected):
@@ -277,13 +259,14 @@ class QuizApp(QWidget):
             self.next_q()
             return
 
-        if not self.current:
+        if not self.session.current:
             return
 
-        correct_set = {
-            i for i, orig_i in self.answer_mapping.items()
-            if orig_i in self.current["correct"]
-        }
+        result = self.session.evaluate_answer(self.answer_mapping, self.selected)
+        if not result:
+            return
+
+        correct_set = result["correct_set"]
 
         for i, box in enumerate(self.boxes):
             box.setEnabled(False)
@@ -295,20 +278,7 @@ class QuizApp(QWidget):
             elif i not in correct_set and i in self.selected:
                 box.mark_wrong()
 
-        file_name = self.current["file"]
-
-        if self.selected == correct_set:
-            self.state.register_correct(file_name)
-        elif self.selected and self.selected.issubset(correct_set):
-            self.state.register_partial(file_name)
-            for _ in range(2):
-                self.queue.insert(random.randint(len(self.queue) // 2, len(self.queue)), file_name)
-        else:
-            self.state.register_wrong(file_name)
-            for _ in range(2):
-                self.queue.insert(random.randint(len(self.queue) // 2, len(self.queue)), file_name)
-
-        self.quiz_view.progress.state = self.state.to_dict()
+        self.quiz_view.progress.state = self.session.serialize_state()
         self.quiz_view.progress.update()
         self.update_mastery_label()
 
@@ -320,8 +290,8 @@ class QuizApp(QWidget):
         self.timer.stop()
         self.save()
 
-        mastered = self.state.mastered_count() if self.state else 0
-        total = self.state.total_questions() if self.state else 0
+        mastered = self.session.mastered_count()
+        total = self.session.total_questions()
 
         QMessageBox.information(
             self,
