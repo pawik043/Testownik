@@ -11,12 +11,13 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 
-from .ui import MainMenu, QuizView
+from .ui import FlashcardFilePickerDialog, MainMenu, QuizView
 from .widgets import AnswerBox
 from .services import (
     QuizInteractionService,
     QuizSessionService,
     delete_file,
+    list_flashcard_csv_files,
     read_text_file,
     write_text_file,
 )
@@ -38,6 +39,8 @@ class QuizApp(QWidget):
         self.start_time = time.time()
         self.config_path = ""
         self.current_folder = ""
+        self.flashcard_folder = ""
+        self.selected_flashcard_files = []
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
@@ -69,10 +72,39 @@ class QuizApp(QWidget):
         self.stack.setCurrentWidget(self.main_menu)
 
     def open_flashcards_mode(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Flashcards Folder")
+        if not folder:
+            return
+
+        flashcard_files = list_flashcard_csv_files(folder)
+        if not flashcard_files:
+            QMessageBox.warning(
+                self,
+                "No CSV files",
+                "No CSV files were found in this folder.",
+            )
+            return
+
+        dialog = FlashcardFilePickerDialog(flashcard_files, self)
+        if dialog.exec() != dialog.Accepted:
+            return
+
+        selected_files = dialog.selected_files()
+        if not selected_files:
+            QMessageBox.information(
+                self,
+                "No files selected",
+                "Select at least one CSV file to start a flashcards session.",
+            )
+            return
+
+        self.flashcard_folder = folder
+        self.selected_flashcard_files = selected_files
+
         QMessageBox.information(
             self,
-            "Flashcards",
-            "Flashcards mode has been added to the menu and will be implemented next.",
+            "Flashcards Selection Saved",
+            "Selected files:\n\n" + "\n".join(file_info["label"] for file_info in selected_files),
         )
 
     def load_recent_folder(self):
