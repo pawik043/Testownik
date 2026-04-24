@@ -1,4 +1,5 @@
 import os
+import random
 import time
 
 from PySide6.QtCore import QTimer, Qt
@@ -12,7 +13,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 
-from .ui import FlashcardFilePickerDialog, MainMenu, QuizView
+from .ui import FlashcardFilePickerDialog, FlashcardView, MainMenu, QuizView
 from .widgets import AnswerBox
 from .services import (
     QuizInteractionService,
@@ -39,11 +40,17 @@ class QuizApp(QWidget):
         self.boxes = []
         self.invalid_question_files = []
         self.start_time = time.time()
+        self.active_mode = None
         self.config_path = ""
         self.current_folder = ""
         self.flashcard_folder = ""
         self.selected_flashcard_files = []
         self.flashcard_cards = []
+        self.flashcard_queue = []
+        self.flashcard_current = None
+        self.flashcard_status = {}
+        self.flashcard_showing_back = False
+        self.flashcard_waiting_next = False
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
@@ -62,8 +69,18 @@ class QuizApp(QWidget):
             on_submit=self.check_or_next,
         )
 
+        self.flashcard_view = FlashcardView(
+            on_return=self.return_to_menu,
+            on_reset=self.reset_flashcard_session,
+            on_flip=self.flip_flashcard,
+            on_known=self.mark_flashcard_known,
+            on_review=self.mark_flashcard_review,
+            on_next=self.next_flashcard,
+        )
+
         self.stack.addWidget(self.main_menu)
         self.stack.addWidget(self.quiz_view)
+        self.stack.addWidget(self.flashcard_view)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.stack)
@@ -72,6 +89,7 @@ class QuizApp(QWidget):
 
     def return_to_menu(self):
         self.timer.stop()
+        self.active_mode = None
         self.stack.setCurrentWidget(self.main_menu)
 
     def open_flashcards_mode(self):
@@ -115,30 +133,15 @@ class QuizApp(QWidget):
         self.selected_flashcard_files = deck["files"]
         self.flashcard_cards = deck["cards"]
 
-        message_lines = [
-            f"Loaded {len(self.flashcard_cards)} flashcards from {len(self.selected_flashcard_files)} file(s).",
-            "",
-            "Selected files:",
-            *[
-                f'{file_info["label"]} ({file_info["card_count"]} cards)'
-                for file_info in self.selected_flashcard_files
-            ],
-        ]
-
         if deck["skipped_files"]:
-            message_lines.extend(
-                [
-                    "",
-                    "Skipped files without usable sideA/sideB data:",
-                    *deck["skipped_files"],
-                ]
+            QMessageBox.information(
+                self,
+                "Some files were skipped",
+                "Skipped files without usable sideA/sideB data:\n\n"
+                + "\n".join(deck["skipped_files"]),
             )
 
-        QMessageBox.information(
-            self,
-            "Flashcards Selection Saved",
-            "\n".join(message_lines),
-        )
+        self.start_flashcard_session()
 
     def load_recent_folder(self):
         if not os.path.exists(RECENT_FILE):
@@ -170,6 +173,7 @@ class QuizApp(QWidget):
         self.current_folder = folder
         self.save_recent(folder)
         self.config_path = os.path.join(folder, CONFIG_NAME)
+        self.active_mode = "quiz"
 
         self.invalid_question_files = self.session.load_questions_from_folder(folder)
 
@@ -246,18 +250,139 @@ class QuizApp(QWidget):
             return
         self.session.save_to_path(self.config_path)
 
+    def start_flashcard_session(self):
+        if not self.flashcard_cards:
+            return
+
+        self.active_mode = "flashcards"
+        self.flashcard_status = {
+            str(index): "unanswered"
+            for index in range(len(self.flashcard_cards))
+        }
+        self.flashcard_queue = list(enumerate(self.flashcard_cards))
+        random.shuffle(self.flashcard_queue)
+        self.flashcard_current = None
+        self.flashcard_showing_back = False
+        self.flashcard_waiting_next = False
+
+        self.flashcard_view.progress.state = {"status": self.flashcard_status}
+        self.flashcard_view.progress.update()
+        self.update_flashcard_mastery_label()
+
+        self.stack.setCurrentWidget(self.flashcard_view)
+        self.start_time = time.time()
+        self.update_timer()
+        self.timer.start(1000)
+        self.next_flashcard()
+
+    def reset_flashcard_session(self):
+        self.start_flashcard_session()
+
     # ---------- Timer / Labels ----------
 
     def update_timer(self):
         elapsed = int(time.time() - self.start_time)
         minutes = elapsed // 60
         seconds = elapsed % 60
-        self.quiz_view.timer_label.setText(f"{minutes} min {seconds:02d} sec")
+        if self.active_mode == "flashcards":
+            self.flashcard_view.timer_label.setText(f"{minutes} min {seconds:02d} sec")
+        else:
+            self.quiz_view.timer_label.setText(f"{minutes} min {seconds:02d} sec")
 
     def update_mastery_label(self):
         mastered = self.session.mastered_count()
         total = self.session.total_questions()
         self.quiz_view.mastery_label.setText(f"{mastered} / {total}")
+
+    def update_flashcard_mastery_label(self):
+        known = sum(1 for status in self.flashcard_status.values() if status == "correct")
+        total = len(self.flashcard_status)
+        self.flashcard_view.mastery_label.setText(f"{known} / {total}")
+
+    def next_flashcard(self):
+        if self.active_mode != "flashcards":
+            return
+
+        if not self.flashcard_queue:
+            self.finish_flashcard_session()
+            return
+
+        card_index, card = self.flashcard_queue.pop(0)
+        self.flashcard_current = {
+            "index": card_index,
+            "card": card,
+        }
+        self.flashcard_showing_back = False
+        self.flashcard_waiting_next = False
+
+        current_position = len(self.flashcard_status) - len(self.flashcard_queue)
+        self.flashcard_view.question_label.setText(
+            f"Flashcard {current_position} / {len(self.flashcard_status)}"
+        )
+        self.flashcard_view.subtitle_label.setText(
+            f'{card["source_label"]}  •  Tap the card to reveal the answer'
+        )
+        self.flashcard_view.card.setEnabled(True)
+        self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
+        self.flashcard_view.known_btn.setEnabled(False)
+        self.flashcard_view.review_btn.setEnabled(False)
+        self.flashcard_view.next_btn.setEnabled(False)
+
+    def flip_flashcard(self):
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_showing_back or self.flashcard_waiting_next:
+            return
+
+        self.flashcard_showing_back = True
+        self.flashcard_view.card.set_text(
+            self.flashcard_current["card"]["side_b"]["text"],
+            revealed=True,
+        )
+        self.flashcard_view.subtitle_label.setText("Choose how well you knew this card")
+        self.flashcard_view.known_btn.setEnabled(True)
+        self.flashcard_view.review_btn.setEnabled(True)
+
+    def mark_flashcard_known(self):
+        self.classify_flashcard("correct")
+
+    def mark_flashcard_review(self):
+        self.classify_flashcard("wrong")
+
+    def classify_flashcard(self, status: str):
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if not self.flashcard_showing_back or self.flashcard_waiting_next:
+            return
+
+        card_index = str(self.flashcard_current["index"])
+        self.flashcard_status[card_index] = status
+        self.flashcard_waiting_next = True
+
+        self.flashcard_view.progress.state = {"status": self.flashcard_status}
+        self.flashcard_view.progress.update()
+        self.update_flashcard_mastery_label()
+
+        self.flashcard_view.card.setEnabled(False)
+        self.flashcard_view.known_btn.setEnabled(False)
+        self.flashcard_view.review_btn.setEnabled(False)
+        self.flashcard_view.next_btn.setEnabled(True)
+        self.flashcard_view.subtitle_label.setText("Press Next to continue")
+
+    def finish_flashcard_session(self):
+        self.timer.stop()
+
+        known = sum(1 for status in self.flashcard_status.values() if status == "correct")
+        review = sum(1 for status in self.flashcard_status.values() if status == "wrong")
+
+        QMessageBox.information(
+            self,
+            "Flashcards complete",
+            f"Done!\n\nKnown: {known}\nNeeds Review: {review}",
+        )
+        self.return_to_menu()
 
     # ---------- Question flow ----------
 

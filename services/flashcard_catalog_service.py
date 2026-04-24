@@ -100,7 +100,12 @@ def load_flashcard_deck(selected_files: list[dict]) -> dict:
         parsed_file["side_a_columns"] = len(parsed["side_a_indexes"])
         parsed_file["side_b_columns"] = len(parsed["side_b_indexes"])
         parsed_files.append(parsed_file)
-        all_cards.extend(parsed["cards"])
+
+        for card in parsed["cards"]:
+            card_copy = dict(card)
+            card_copy["source_file"] = file_info["file"]
+            card_copy["source_label"] = file_info["label"]
+            all_cards.append(card_copy)
 
     return {
         "files": parsed_files,

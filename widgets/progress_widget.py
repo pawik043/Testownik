@@ -4,10 +4,16 @@ from PySide6.QtCore import Qt
 
 
 class ProgressWidget(QWidget):
-    def __init__(self, state=None, counter_label=None):
+    def __init__(self, state=None, counter_label=None, counter_labels=None, show_partial=True):
         super().__init__()
         self.state = state
         self.counter_label = counter_label
+        self.counter_labels = counter_labels or {
+            "correct": "Correct",
+            "partial": "Partial",
+            "wrong": "Wrong",
+        }
+        self.show_partial = show_partial
         self.setFixedHeight(30)
 
     def paintEvent(self, event):
@@ -64,7 +70,15 @@ class ProgressWidget(QWidget):
         painter.setClipping(False)
 
         if self.counter_label:
-            self.counter_label.setText(
-                f"Correct: {correct}  Partial: {partial}  Wrong: {wrong}"
-            )
+            if self.show_partial:
+                self.counter_label.setText(
+                    f'{self.counter_labels["correct"]}: {correct}  '
+                    f'{self.counter_labels["partial"]}: {partial}  '
+                    f'{self.counter_labels["wrong"]}: {wrong}'
+                )
+            else:
+                self.counter_label.setText(
+                    f'{self.counter_labels["correct"]}: {correct}  '
+                    f'{self.counter_labels["wrong"]}: {wrong}'
+                )
             self.counter_label.setFont(QFont("Helvetica", 12, QFont.Bold))
