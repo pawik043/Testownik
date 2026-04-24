@@ -51,6 +51,7 @@ class QuizApp(QWidget):
         self.flashcard_status = {}
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
+        self.quiz_reps = 1
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
@@ -223,11 +224,13 @@ class QuizApp(QWidget):
         else:
             self.finish_session()
 
-    def new_session(self):
-        reps, ok = QInputDialog.getInt(self, "Reps", "Repetitions", 1, 1, 5)
-        if not ok:
-            reps = 1
+    def new_session(self, reps=None):
+        if reps is None:
+            reps, ok = QInputDialog.getInt(self, "Reps", "Repetitions", self.quiz_reps, 1, 5)
+            if not ok:
+                reps = self.quiz_reps
 
+        self.quiz_reps = reps
         self.session.start_new(reps)
 
         self.start_time = time.time()
@@ -238,7 +241,7 @@ class QuizApp(QWidget):
         self.quiz_view.progress.update()
 
     def reset_session(self):
-        self.new_session()
+        self.new_session(self.quiz_reps)
         self.interaction.reset()
         self.quiz_view.submit_btn.setText("Check")
 
@@ -277,6 +280,23 @@ class QuizApp(QWidget):
 
     def reset_flashcard_session(self):
         self.start_flashcard_session()
+
+    def show_completion_dialog(self):
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Session Complete")
+        dialog.setText("Congratulations! You made it!\n\nWhat do you want to do now?")
+
+        return_btn = dialog.addButton("Return to Main Menu", QMessageBox.ButtonRole.AcceptRole)
+        restart_btn = dialog.addButton("Restart Session", QMessageBox.ButtonRole.ActionRole)
+
+        dialog.exec()
+        clicked = dialog.clickedButton()
+
+        if clicked == restart_btn:
+            return "restart"
+        if clicked == return_btn:
+            return "menu"
+        return "menu"
 
     # ---------- Timer / Labels ----------
 
@@ -376,13 +396,15 @@ class QuizApp(QWidget):
 
         known = sum(1 for status in self.flashcard_status.values() if status == "correct")
         review = sum(1 for status in self.flashcard_status.values() if status == "wrong")
-
-        QMessageBox.information(
-            self,
-            "Flashcards complete",
-            f"Done!\n\nKnown: {known}\nNeeds Review: {review}",
+        self.flashcard_view.subtitle_label.setText(
+            f"Known: {known}  •  Needs Review: {review}"
         )
-        self.return_to_menu()
+
+        action = self.show_completion_dialog()
+        if action == "restart":
+            self.reset_flashcard_session()
+        else:
+            self.return_to_menu()
 
     # ---------- Question flow ----------
 
@@ -468,9 +490,10 @@ class QuizApp(QWidget):
 
         mastered = self.session.mastered_count()
         total = self.session.total_questions()
+        self.quiz_view.question_label.setText(f"Mastered: {mastered} / {total}")
 
-        QMessageBox.information(
-            self,
-            "Session complete",
-            f"Done!\n\nMastered: {mastered} / {total}",
-        )
+        action = self.show_completion_dialog()
+        if action == "restart":
+            self.reset_session()
+        else:
+            self.return_to_menu()
