@@ -1,40 +1,54 @@
-# 🧠 Testownik – Quiz Learning App
+# Testownik
 
-A simple yet powerful desktop quiz application built with **Python + PySide6**, designed for efficient learning through repetition, feedback, and progress tracking.
+A desktop study app built with Python and PySide6.
 
----
+It currently supports two learning modes:
+- Quiz mode for multiple-choice practice from `.txt` files
+- Flashcards mode for card-based review from `.csv` files
 
-## ✨ Features
+## Features
 
-- 📂 Load questions from a folder of `.txt` files
-- 🔁 Repetition-based learning (configurable per session)
-- 🎯 Tracks mastery of each question
-- 🟢 Visual feedback:
-  - Green = correct
-  - Orange = partially correct
-  - Red = wrong
-- 📊 Smooth progress bar showing answer quality
-- ⏱ Built-in session timer
-- 💾 Resume previous session automatically
-- 🧠 Smart repetition:
-  - Wrong/partial answers are reinserted into the queue
+- Two study modes from the main menu: `Quiz Mode` and `Flashcards Mode`
+- `Continue Last Session` resumes the most recent session, whether it was quiz or flashcards
+- Built-in timer, progress tracking, and session restart flow
+- Completion dialog with `Return to Main Menu` and `Restart Session`
 
----
+### Quiz Mode
 
-## 🚀 Getting Started
+- Loads questions from a folder of `.txt` files
+- Repetition-based learning with configurable repetition count
+- Tracks mastery per question
+- Answer feedback:
+  - green = correct
+  - yellow = missed correct answer
+  - red = wrong selected answer
+- Wrong and partial answers are reinserted into the queue for extra practice
+- Session progress is saved to `quiz_state.json` inside the selected question folder
 
-### 1. Requirements
+### Flashcards Mode
 
-- Python **3.10+**
-- Recommended: use a virtual environment
+- Loads flashcard sets from `.csv` files in a selected folder
+- Lets the user choose which CSV files to include through a checkbox picker
+- Includes `Select All` and `Deselect All` shortcuts in the file picker
+- Displays a large flashcard with `sideA` first and `sideB` after reveal
+- Reveal by clicking the card or pressing `Check`
+- Classify cards with `I Knew It` or `Needs Review`
+- Tracks flashcard progress during the session
+- Session progress is saved to `flashcard_state.json` inside the selected flashcard folder
 
-### 2. Install dependencies
+## Getting Started
+
+### Requirements
+
+- Python 3.10+
+
+### Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Run the app
+### Run the app
 
 From the parent directory of `Testownik`:
 
@@ -42,11 +56,9 @@ From the parent directory of `Testownik`:
 python -m Testownik
 ```
 
----
+## Quiz File Format
 
-## 📝 Question Format
-
-Each question is stored in a `.txt` file.
+Each quiz question is stored in its own `.txt` file.
 
 ### Example
 
@@ -61,60 +73,98 @@ Each question is stored in a `.txt` file.
 
 ### Rules
 
-- `?` → question (only one per file)
-- `*` → correct answer
-- `-` → incorrect answer
+- `?` means the question line
+- `*` means a correct answer
+- `-` means an incorrect answer
 
 ### Requirements
 
 Each file must contain:
-- exactly **one question (`?`)**
-- at least **one correct answer (`*`)**
-- at least **one answer overall**
+- exactly one question line
+- at least one correct answer
+- at least one answer overall
 
----
+### Invalid Quiz Files
 
-## ⚠️ Invalid Files
-
-Files will be **skipped automatically** if they:
-- have invalid format
+Files are skipped automatically if they:
+- contain invalid line formats
+- contain multiple question lines
 - contain empty answers
-- contain multiple `?` lines
-- contain unsupported line formats
+- do not contain a valid question/correct-answer structure
 
-A warning will be displayed listing all skipped files.
+## Flashcard CSV Format
 
----
+Flashcards are created from `.csv` files using only columns named `sideA` and `sideB`.
 
-## 🧠 How Learning Works
+Any column with a different header is ignored.
 
-- You choose how many repetitions each question requires
-- A question is considered **mastered** only after all required correct repetitions are completed
-- Wrong or partial answers **do not increase required repetitions**, but add extra practice attempts
+### Simple Example
 
----
+```csv
+sideA,sideB
+dog,pies
+cat,kot
+```
 
-## 🤝 Contributing
+### Multiple Columns Per Side
 
-Contributions are very welcome!
+If a file contains repeated `sideA` or `sideB` columns, values from the same row are combined on one side of the card.
 
-If you have ideas for improvements, new features, or bug fixes:
+Example:
 
-- ⭐ Open an issue to discuss ideas
-- 🔧 Submit a pull request
-- 💡 Suggest UX/UI improvements
+```csv
+sideA,sideA,sideB
+DataX,DataY,DataZ
+```
 
-This project is meant to evolve — feel free to experiment and improve it.
+This becomes:
 
----
+- front side:
 
+```text
+DataX
 
-## 📜 License
+DataY
+```
 
-MIT 
+- back side:
 
----
+```text
+DataZ
+```
 
-## 👨‍💻 Author
+If repeated columns on the same side contain the same text in the same row, duplicates are removed instead of being shown twice.
 
-Built as a learning-focused project. Feel free to fork, modify, and extend 🚀
+### Flashcard CSV Notes
+
+- Header matching for `sideA` and `sideB` is case-insensitive
+- Empty values are ignored
+- A row is skipped if it does not produce both a non-empty `sideA` and a non-empty `sideB`
+- Files without usable `sideA`/`sideB` data are skipped
+- File names shown in the picker are cleaned for display, for example:
+  - `kanji_new.csv` becomes `Kanji New`
+
+## Session Persistence
+
+- The app stores the latest session type and folder in `recent_session.json`
+- `Continue Last Session` restores the most recent quiz or flashcard session
+- Quiz progress is restored from the selected quiz folder
+- Flashcard progress is restored from the selected flashcard folder, including:
+  - selected files
+  - remaining queue
+  - current card
+  - known / needs-review status
+  - whether the current card was already revealed
+
+## UI Summary
+
+- Main menu now matches the same dark card-based style used in study sessions
+- Flashcard mode uses a large scalable card with dynamic font sizing and wrapping
+- Flashcard controls are arranged as:
+  - `Check`
+  - `I Knew It` and `Needs Review`
+  - `Next`
+
+## License
+
+MIT
