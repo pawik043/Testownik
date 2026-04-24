@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QStackedWidget,
+    QDialog,
     QFileDialog,
     QMessageBox,
     QInputDialog,
@@ -88,7 +89,7 @@ class QuizApp(QWidget):
             return
 
         dialog = FlashcardFilePickerDialog(flashcard_files, self)
-        if dialog.exec() != dialog.Accepted:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
         selected_files = dialog.selected_files()
