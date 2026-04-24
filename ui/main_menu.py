@@ -18,16 +18,16 @@ class MainMenu(QWidget):
         select_btn = QPushButton("Select Question Folder")
         select_btn.clicked.connect(on_select_folder)
 
-        recent_btn = QPushButton("Load Recent Folder")
-        recent_btn.clicked.connect(on_load_recent)
-
         flashcards_btn = QPushButton("Flashcards Mode")
         flashcards_btn.clicked.connect(on_flashcards)
+
+        recent_btn = QPushButton("Continue Last Session")
+        recent_btn.clicked.connect(on_load_recent)
 
         layout.addStretch()
         layout.addWidget(title)
         layout.addSpacing(20)
         layout.addWidget(select_btn)
-        layout.addWidget(recent_btn)
         layout.addWidget(flashcards_btn)
+        layout.addWidget(recent_btn)
         layout.addStretch()
