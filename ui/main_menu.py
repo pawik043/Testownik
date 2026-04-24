@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 
 
 class MainMenu(QWidget):
-    def __init__(self, on_select_folder, on_load_recent):
+    def __init__(self, on_select_folder, on_load_recent, on_flashcards):
         super().__init__()
 
         layout = QVBoxLayout(self)
@@ -21,9 +21,13 @@ class MainMenu(QWidget):
         recent_btn = QPushButton("Load Recent Folder")
         recent_btn.clicked.connect(on_load_recent)
 
+        flashcards_btn = QPushButton("Flashcards Mode")
+        flashcards_btn.clicked.connect(on_flashcards)
+
         layout.addStretch()
         layout.addWidget(title)
         layout.addSpacing(20)
         layout.addWidget(select_btn)
         layout.addWidget(recent_btn)
+        layout.addWidget(flashcards_btn)
         layout.addStretch()

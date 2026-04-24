@@ -47,6 +47,7 @@ class QuizApp(QWidget):
         self.main_menu = MainMenu(
             on_select_folder=self.load_folder,
             on_load_recent=self.load_recent_folder,
+            on_flashcards=self.open_flashcards_mode,
         )
 
         self.quiz_view = QuizView(
@@ -66,6 +67,13 @@ class QuizApp(QWidget):
     def return_to_menu(self):
         self.timer.stop()
         self.stack.setCurrentWidget(self.main_menu)
+
+    def open_flashcards_mode(self):
+        QMessageBox.information(
+            self,
+            "Flashcards",
+            "Flashcards mode has been added to the menu and will be implemented next.",
+        )
 
     def load_recent_folder(self):
         if not os.path.exists(RECENT_FILE):
