@@ -7,5 +7,6 @@ from .session_manager import (
     load_session,
     read_text_file,
     save_session,
+    save_json_file,
     write_text_file,
 )

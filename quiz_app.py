@@ -21,13 +21,14 @@ from .services import (
     delete_file,
     list_flashcard_csv_files,
     load_flashcard_deck,
-    read_text_file,
-    write_text_file,
+    load_session,
+    save_json_file,
 )
 
 
 CONFIG_NAME = "quiz_state.json"
-RECENT_FILE = "recent_folder.txt"
+FLASHCARD_CONFIG_NAME = "flashcard_state.json"
+RECENT_SESSION_FILE = "recent_session.json"
 
 
 class QuizApp(QWidget):
@@ -42,6 +43,7 @@ class QuizApp(QWidget):
         self.start_time = time.time()
         self.active_mode = None
         self.config_path = ""
+        self.flashcard_config_path = ""
         self.current_folder = ""
         self.flashcard_folder = ""
         self.selected_flashcard_files = []
@@ -90,6 +92,10 @@ class QuizApp(QWidget):
 
     def return_to_menu(self):
         self.timer.stop()
+        if self.active_mode == "flashcards":
+            self.save_flashcard_session()
+        elif self.active_mode == "quiz":
+            self.save()
         self.active_mode = None
         self.stack.setCurrentWidget(self.main_menu)
 
@@ -97,6 +103,45 @@ class QuizApp(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Select Flashcards Folder")
         if not folder:
             return
+
+        self.load_flashcard_folder(folder)
+
+    def load_recent_folder(self):
+        recent_session = load_session(RECENT_SESSION_FILE)
+        if not recent_session:
+            QMessageBox.information(self, "No recent session", "No recent session saved yet.")
+            return
+
+        mode = recent_session.get("mode")
+        folder = recent_session.get("folder", "").strip()
+
+        if not folder or not os.path.isdir(folder):
+            QMessageBox.warning(self, "Missing folder", "The recent session folder no longer exists.")
+            return
+
+        if mode == "flashcards":
+            self.load_flashcard_folder(folder, auto_resume=True)
+            return
+
+        self.load_folder(folder, auto_resume=True)
+
+    def save_recent_session(self, mode: str, folder: str):
+        save_json_file(
+            RECENT_SESSION_FILE,
+            {
+                "mode": mode,
+                "folder": folder,
+            },
+        )
+
+    def load_flashcard_folder(self, folder: str, auto_resume: bool = False):
+        self.flashcard_folder = folder
+        self.flashcard_config_path = os.path.join(folder, FLASHCARD_CONFIG_NAME)
+        self.save_recent_session("flashcards", folder)
+
+        if auto_resume and os.path.exists(self.flashcard_config_path):
+            if self.restore_flashcard_session():
+                return
 
         flashcard_files = list_flashcard_csv_files(folder)
         if not flashcard_files:
@@ -120,7 +165,6 @@ class QuizApp(QWidget):
             )
             return
 
-        self.flashcard_folder = folder
         deck = load_flashcard_deck(selected_files)
 
         if not deck["files"]:
@@ -144,35 +188,16 @@ class QuizApp(QWidget):
 
         self.start_flashcard_session()
 
-    def load_recent_folder(self):
-        if not os.path.exists(RECENT_FILE):
-            QMessageBox.information(self, "No recent folder", "No recent folder saved yet.")
-            return
-
-        folder = read_text_file(RECENT_FILE)
-        if folder is None:
-            QMessageBox.warning(self, "Error", "Could not read recent folder.")
-            return
-
-        if not folder or not os.path.isdir(folder):
-            QMessageBox.warning(self, "Missing folder", "The recent folder no longer exists.")
-            return
-
-        self.load_folder(folder)
-
-    def save_recent(self, folder: str):
-        write_text_file(RECENT_FILE, folder)
-
     # ---------- Session / Folder ----------
 
-    def load_folder(self, folder=None):
+    def load_folder(self, folder=None, auto_resume: bool = False):
         if not folder:
             folder = QFileDialog.getExistingDirectory(self)
         if not folder:
             return
 
         self.current_folder = folder
-        self.save_recent(folder)
+        self.save_recent_session("quiz", folder)
         self.config_path = os.path.join(folder, CONFIG_NAME)
         self.active_mode = "quiz"
 
@@ -194,7 +219,10 @@ class QuizApp(QWidget):
             )
             return
 
-        if os.path.exists(self.config_path):
+        if auto_resume and os.path.exists(self.config_path):
+            if not self.session.restore_from_path(self.config_path):
+                self.new_session()
+        elif os.path.exists(self.config_path):
             answer = QMessageBox.question(
                 self,
                 "Resume",
@@ -252,6 +280,8 @@ class QuizApp(QWidget):
         if not self.session.state or not self.config_path:
             return
         self.session.save_to_path(self.config_path)
+        if self.current_folder:
+            self.save_recent_session("quiz", self.current_folder)
 
     def start_flashcard_session(self):
         if not self.flashcard_cards:
@@ -267,6 +297,7 @@ class QuizApp(QWidget):
         self.flashcard_current = None
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
+        self.flashcard_config_path = os.path.join(self.flashcard_folder, FLASHCARD_CONFIG_NAME)
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
@@ -280,6 +311,95 @@ class QuizApp(QWidget):
 
     def reset_flashcard_session(self):
         self.start_flashcard_session()
+
+    def save_flashcard_session(self):
+        if not self.flashcard_folder or not self.flashcard_config_path:
+            return
+
+        current_index = None
+        if self.flashcard_current is not None:
+            current_index = self.flashcard_current["index"]
+
+        payload = {
+            "selected_files": [file_info["file"] for file_info in self.selected_flashcard_files],
+            "queue": [index for index, _ in self.flashcard_queue],
+            "current_index": current_index,
+            "status": self.flashcard_status,
+            "showing_back": self.flashcard_showing_back,
+            "waiting_next": self.flashcard_waiting_next,
+        }
+        save_json_file(self.flashcard_config_path, payload)
+        self.save_recent_session("flashcards", self.flashcard_folder)
+
+    def restore_flashcard_session(self) -> bool:
+        saved = load_session(self.flashcard_config_path)
+        if not saved:
+            return False
+
+        flashcard_files = list_flashcard_csv_files(self.flashcard_folder)
+        file_lookup = {file_info["file"]: file_info for file_info in flashcard_files}
+        selected_files = [
+            file_lookup[file_name]
+            for file_name in saved.get("selected_files", [])
+            if file_name in file_lookup
+        ]
+        if not selected_files:
+            return False
+
+        deck = load_flashcard_deck(selected_files)
+        if not deck["files"] or not deck["cards"]:
+            return False
+
+        self.selected_flashcard_files = deck["files"]
+        self.flashcard_cards = deck["cards"]
+        self.active_mode = "flashcards"
+        self.flashcard_config_path = os.path.join(self.flashcard_folder, FLASHCARD_CONFIG_NAME)
+
+        card_lookup = {
+            index: card
+            for index, card in enumerate(self.flashcard_cards)
+        }
+        self.flashcard_status = {
+            str(index): "unanswered"
+            for index in range(len(self.flashcard_cards))
+        }
+        self.flashcard_status.update(saved.get("status", {}))
+
+        self.flashcard_queue = [
+            (index, card_lookup[index])
+            for index in saved.get("queue", [])
+            if index in card_lookup
+        ]
+
+        current_index = saved.get("current_index")
+        self.flashcard_current = None
+        if current_index in card_lookup:
+            self.flashcard_current = {
+                "index": current_index,
+                "card": card_lookup[current_index],
+            }
+
+        self.flashcard_showing_back = bool(saved.get("showing_back", False))
+        self.flashcard_waiting_next = bool(saved.get("waiting_next", False))
+
+        self.flashcard_view.progress.state = {"status": self.flashcard_status}
+        self.flashcard_view.progress.update()
+        self.update_flashcard_mastery_label()
+
+        self.stack.setCurrentWidget(self.flashcard_view)
+        self.start_time = time.time()
+        self.update_timer()
+        self.timer.start(1000)
+
+        if self.flashcard_current is None:
+            if self.flashcard_queue:
+                self.next_flashcard()
+            else:
+                self.finish_flashcard_session()
+            return True
+
+        self.render_current_flashcard()
+        return True
 
     def show_completion_dialog(self):
         dialog = QMessageBox(self)
@@ -335,18 +455,37 @@ class QuizApp(QWidget):
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
 
+        self.render_current_flashcard()
+        self.save_flashcard_session()
+
+    def render_current_flashcard(self):
+        if not self.flashcard_current:
+            return
+
         current_position = len(self.flashcard_status) - len(self.flashcard_queue)
         self.flashcard_view.question_label.setText(
             f"Flashcard {current_position} / {len(self.flashcard_status)}"
         )
-        self.flashcard_view.subtitle_label.setText(
-            f'{card["source_label"]}  •  Tap the card to reveal the answer'
-        )
+        card = self.flashcard_current["card"]
+        if self.flashcard_waiting_next:
+            subtitle = "Press Next to continue"
+        elif self.flashcard_showing_back:
+            subtitle = "Choose how well you knew this card"
+        else:
+            subtitle = f'{card["source_label"]}  •  Tap the card to reveal the answer'
+
+        self.flashcard_view.subtitle_label.setText(subtitle)
         self.flashcard_view.card.setEnabled(True)
-        self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
-        self.flashcard_view.known_btn.setEnabled(False)
-        self.flashcard_view.review_btn.setEnabled(False)
-        self.flashcard_view.next_btn.setEnabled(False)
+        if self.flashcard_showing_back:
+            self.flashcard_view.card.set_text(card["side_b"]["text"], revealed=True)
+        else:
+            self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
+
+        can_classify = self.flashcard_showing_back and not self.flashcard_waiting_next
+        self.flashcard_view.card.setEnabled(not self.flashcard_waiting_next)
+        self.flashcard_view.known_btn.setEnabled(can_classify)
+        self.flashcard_view.review_btn.setEnabled(can_classify)
+        self.flashcard_view.next_btn.setEnabled(self.flashcard_waiting_next)
 
     def flip_flashcard(self):
         if self.active_mode != "flashcards" or not self.flashcard_current:
@@ -356,13 +495,8 @@ class QuizApp(QWidget):
             return
 
         self.flashcard_showing_back = True
-        self.flashcard_view.card.set_text(
-            self.flashcard_current["card"]["side_b"]["text"],
-            revealed=True,
-        )
-        self.flashcard_view.subtitle_label.setText("Choose how well you knew this card")
-        self.flashcard_view.known_btn.setEnabled(True)
-        self.flashcard_view.review_btn.setEnabled(True)
+        self.render_current_flashcard()
+        self.save_flashcard_session()
 
     def mark_flashcard_known(self):
         self.classify_flashcard("correct")
@@ -384,12 +518,8 @@ class QuizApp(QWidget):
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
         self.update_flashcard_mastery_label()
-
-        self.flashcard_view.card.setEnabled(False)
-        self.flashcard_view.known_btn.setEnabled(False)
-        self.flashcard_view.review_btn.setEnabled(False)
-        self.flashcard_view.next_btn.setEnabled(True)
-        self.flashcard_view.subtitle_label.setText("Press Next to continue")
+        self.render_current_flashcard()
+        self.save_flashcard_session()
 
     def finish_flashcard_session(self):
         self.timer.stop()

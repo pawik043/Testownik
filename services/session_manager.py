@@ -50,6 +50,15 @@ def load_session(config_path: str):
         return None
 
 
+def save_json_file(path: str, payload: dict) -> bool:
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+
 def save_session(config_path: str, state: dict, queue: list):
     """
     Save session state and queue to disk.
@@ -57,5 +66,4 @@ def save_session(config_path: str, state: dict, queue: list):
     payload = dict(state)
     payload["queue"] = queue
 
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+    save_json_file(config_path, payload)
