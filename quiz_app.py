@@ -18,6 +18,7 @@ from .services import (
     QuizSessionService,
     delete_file,
     list_flashcard_csv_files,
+    load_flashcard_deck,
     read_text_file,
     write_text_file,
 )
@@ -41,6 +42,7 @@ class QuizApp(QWidget):
         self.current_folder = ""
         self.flashcard_folder = ""
         self.selected_flashcard_files = []
+        self.flashcard_cards = []
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_timer)
@@ -99,12 +101,42 @@ class QuizApp(QWidget):
             return
 
         self.flashcard_folder = folder
-        self.selected_flashcard_files = selected_files
+        deck = load_flashcard_deck(selected_files)
+
+        if not deck["files"]:
+            QMessageBox.warning(
+                self,
+                "No valid flashcards",
+                "No selected CSV files contained usable sideA/sideB columns with card data.",
+            )
+            return
+
+        self.selected_flashcard_files = deck["files"]
+        self.flashcard_cards = deck["cards"]
+
+        message_lines = [
+            f"Loaded {len(self.flashcard_cards)} flashcards from {len(self.selected_flashcard_files)} file(s).",
+            "",
+            "Selected files:",
+            *[
+                f'{file_info["label"]} ({file_info["card_count"]} cards)'
+                for file_info in self.selected_flashcard_files
+            ],
+        ]
+
+        if deck["skipped_files"]:
+            message_lines.extend(
+                [
+                    "",
+                    "Skipped files without usable sideA/sideB data:",
+                    *deck["skipped_files"],
+                ]
+            )
 
         QMessageBox.information(
             self,
             "Flashcards Selection Saved",
-            "Selected files:\n\n" + "\n".join(file_info["label"] for file_info in selected_files),
+            "\n".join(message_lines),
         )
 
     def load_recent_folder(self):
