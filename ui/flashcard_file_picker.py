@@ -1,9 +1,11 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -24,6 +26,19 @@ class FlashcardFilePickerDialog(QDialog):
         description = QLabel("Choose which CSV files should be included in the flashcards session.")
         description.setWordWrap(True)
         layout.addWidget(description)
+
+        actions = QHBoxLayout()
+
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.clicked.connect(self.select_all)
+
+        deselect_all_btn = QPushButton("Deselect All")
+        deselect_all_btn.clicked.connect(self.deselect_all)
+
+        actions.addWidget(select_all_btn)
+        actions.addWidget(deselect_all_btn)
+        actions.addStretch()
+        layout.addLayout(actions)
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -52,3 +67,11 @@ class FlashcardFilePickerDialog(QDialog):
 
     def selected_files(self) -> list[dict]:
         return [checkbox.file_info for checkbox in self.checkboxes if checkbox.isChecked()]
+
+    def select_all(self):
+        for checkbox in self.checkboxes:
+            checkbox.setChecked(True)
+
+    def deselect_all(self):
+        for checkbox in self.checkboxes:
+            checkbox.setChecked(False)
