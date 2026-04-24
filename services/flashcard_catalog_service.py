@@ -33,7 +33,18 @@ def normalize_flashcard_header(header: str) -> str:
 
 
 def build_flashcard_side(values: list[str]) -> dict:
-    cleaned_values = [value.strip() for value in values if value and value.strip()]
+    cleaned_values = []
+
+    for value in values:
+        if not value or not value.strip():
+            continue
+
+        normalized = value.strip()
+        if normalized in cleaned_values:
+            continue
+
+        cleaned_values.append(normalized)
+
     return {
         "segments": cleaned_values,
         "text": "\n\n".join(cleaned_values),
