@@ -3,6 +3,10 @@ import os
 import re
 
 
+# Common encodings for Polish text files
+POLISH_ENCODINGS = ["utf-8-sig", "utf-8", "windows-1250", "iso-8859-2", "cp1250"]
+
+
 def format_flashcard_name(filename: str) -> str:
     base_name, _ = os.path.splitext(filename)
     cleaned = re.sub(r"[_-]+", " ", base_name)
@@ -51,10 +55,27 @@ def build_flashcard_side(values: list[str]) -> dict:
     }
 
 
+def _read_csv_with_encoding(path: str):
+    """Try multiple encodings to read a CSV file, supporting Polish characters."""
+    for encoding in POLISH_ENCODINGS:
+        try:
+            with open(path, "r", encoding=encoding, newline="") as csv_file:
+                return list(csv.reader(csv_file))
+        except (UnicodeDecodeError, LookupError):
+            continue
+        except Exception:
+            return None
+    return None
+
+
 def parse_flashcard_csv_file(path: str) -> dict:
-    with open(path, "r", encoding="utf-8-sig", newline="") as csv_file:
-        reader = csv.reader(csv_file)
-        rows = list(reader)
+    rows = _read_csv_with_encoding(path)
+    if rows is None:
+        return {
+            "cards": [],
+            "side_a_indexes": [],
+            "side_b_indexes": [],
+        }
 
     if not rows:
         return {

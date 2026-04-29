@@ -1,6 +1,23 @@
 import os
 
 
+# Common encodings for Polish text files
+POLISH_ENCODINGS = ["utf-8", "utf-8-sig", "windows-1250", "iso-8859-2", "cp1250"]
+
+
+def _read_file_with_encoding(path: str):
+    """Try multiple encodings to read a file, supporting Polish characters."""
+    for encoding in POLISH_ENCODINGS:
+        try:
+            with open(path, "r", encoding=encoding) as f:
+                return f.readlines()
+        except (UnicodeDecodeError, LookupError):
+            continue
+        except Exception:
+            return None
+    return None
+
+
 def load_questions(folder: str):
     """
     Load valid quiz questions from .txt files in the given folder.
@@ -19,10 +36,8 @@ def load_questions(folder: str):
 
         path = os.path.join(folder, filename)
 
-        try:
-            with open(path, encoding="utf-8") as f:
-                lines = f.readlines()
-        except Exception:
+        lines = _read_file_with_encoding(path)
+        if lines is None:
             invalid_files.append(f"{filename} (could not be read)")
             continue
 

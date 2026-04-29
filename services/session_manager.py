@@ -2,15 +2,25 @@ import json
 import os
 
 
+# Common encodings for Polish text files
+POLISH_ENCODINGS = ["utf-8", "utf-8-sig", "windows-1250", "iso-8859-2", "cp1250"]
+
+
 def read_text_file(path: str):
     if not os.path.exists(path):
         return None
 
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    except Exception:
-        return None
+    # Try multiple encodings for Polish character support
+    for encoding in POLISH_ENCODINGS:
+        try:
+            with open(path, "r", encoding=encoding) as f:
+                return f.read().strip()
+        except (UnicodeDecodeError, LookupError):
+            continue
+        except Exception:
+            return None
+
+    return None
 
 
 def write_text_file(path: str, content: str) -> bool:
