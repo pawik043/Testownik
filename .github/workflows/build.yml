@@ -1,0 +1,84 @@
+name: Build Testownik
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows app
+        run: |
+          pyinstaller --name Testownik --windowed --onedir __main__.py
+
+      - name: Zip Windows build
+        run: |
+          Compress-Archive -Path dist\Testownik\* -DestinationPath Testownik-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Testownik-Windows
+          path: Testownik-Windows.zip
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release create ${{ github.ref_name }} Testownik-Windows.zip --title ${{ github.ref_name }} --notes "Automatyczny build Testownika" || gh release upload ${{ github.ref_name }} Testownik-Windows.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-13
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS app
+        run: |
+          pyinstaller --name Testownik --windowed --onedir __main__.py
+
+      - name: Zip macOS build
+        run: |
+          cd dist
+          zip -r ../Testownik-macOS.zip Testownik.app Testownik
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Testownik-macOS
+          path: Testownik-macOS.zip
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release upload ${{ github.ref_name }} Testownik-macOS.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
