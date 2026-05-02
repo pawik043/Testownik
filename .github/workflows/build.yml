@@ -45,7 +45,7 @@ jobs:
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          gh release create ${{ github.ref_name }} Testownik-Windows.zip --title ${{ github.ref_name }} --notes "Automatyczny build Testownika" || gh release upload ${{ github.ref_name }} Testownik-Windows.zip --clobber
+          gh release create ${{ github.ref_name }} Testownik-Windows.zip --title ${{ github.ref_name }} --notes "Automatic App build" || gh release upload ${{ github.ref_name }} Testownik-Windows.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
