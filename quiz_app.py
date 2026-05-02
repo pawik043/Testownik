@@ -1,6 +1,8 @@
 import os
 import random
 import time
+import sys
+from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
@@ -13,9 +15,9 @@ from PySide6.QtWidgets import (
     QInputDialog,
 )
 
-from .ui import FlashcardFilePickerDialog, FlashcardView, MainMenu, QuizView
-from .widgets import AnswerBox
-from .services import (
+from ui import FlashcardFilePickerDialog, FlashcardView, MainMenu, QuizView
+from widgets import AnswerBox
+from services import (
     QuizInteractionService,
     QuizSessionService,
     delete_file,
@@ -28,7 +30,11 @@ from .services import (
 
 CONFIG_NAME = "quiz_state.json"
 FLASHCARD_CONFIG_NAME = "flashcard_state.json"
-RECENT_SESSION_FILE = "recent_session.json"
+
+# Use user data directory for persistent files
+USER_DATA_DIR = Path.home() / ".testownik"
+USER_DATA_DIR.mkdir(exist_ok=True)
+RECENT_SESSION_FILE = USER_DATA_DIR / "recent_session.json"
 
 
 class QuizApp(QWidget):
@@ -107,7 +113,7 @@ class QuizApp(QWidget):
         self.load_flashcard_folder(folder)
 
     def load_recent_folder(self):
-        recent_session = load_session(RECENT_SESSION_FILE)
+        recent_session = load_session(str(RECENT_SESSION_FILE))
         if not recent_session:
             QMessageBox.information(self, "No recent session", "No recent session saved yet.")
             return
@@ -127,7 +133,7 @@ class QuizApp(QWidget):
 
     def save_recent_session(self, mode: str, folder: str):
         save_json_file(
-            RECENT_SESSION_FILE,
+            str(RECENT_SESSION_FILE),
             {
                 "mode": mode,
                 "folder": folder,

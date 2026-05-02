@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
-from ..widgets import ProgressWidget
+from widgets import ProgressWidget
 
 
 class QuizView(QWidget):

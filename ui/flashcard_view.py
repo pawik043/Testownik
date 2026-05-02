@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..widgets import FlashcardTile, ProgressWidget
+from widgets import FlashcardTile, ProgressWidget
 
 
 class FlashcardView(QWidget):
