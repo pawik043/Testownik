@@ -13,11 +13,12 @@ from PySide6.QtWidgets import (
 
 
 class FlashcardFilePickerDialog(QDialog):
-    def __init__(self, files: list[dict], parent=None):
+    def __init__(self, files: list[dict], review_file: dict | None = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select Flashcard Sets")
         self.resize(420, 520)
         self.checkboxes = []
+        self.review_checkbox = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -49,6 +50,21 @@ class FlashcardFilePickerDialog(QDialog):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(10)
 
+        if review_file is not None:
+            review_label = QLabel("Review file")
+            review_label.setStyleSheet("font-weight: bold; margin-bottom: 4px;")
+            content_layout.addWidget(review_label)
+
+            review_checkbox = QCheckBox(f"{review_file['label']} ({review_file['file']})")
+            review_checkbox.setChecked(True)
+            review_checkbox.file_info = review_file
+            self.review_checkbox = review_checkbox
+            content_layout.addWidget(review_checkbox)
+
+            separator = QLabel("")
+            separator.setFixedHeight(8)
+            content_layout.addWidget(separator)
+
         for file_info in files:
             checkbox = QCheckBox(file_info["label"])
             checkbox.setChecked(True)
@@ -66,12 +82,19 @@ class FlashcardFilePickerDialog(QDialog):
         layout.addWidget(buttons)
 
     def selected_files(self) -> list[dict]:
-        return [checkbox.file_info for checkbox in self.checkboxes if checkbox.isChecked()]
+        files = [checkbox.file_info for checkbox in self.checkboxes if checkbox.isChecked()]
+        if self.review_checkbox is not None and self.review_checkbox.isChecked():
+            files.insert(0, self.review_checkbox.file_info)
+        return files
 
     def select_all(self):
+        if self.review_checkbox is not None:
+            self.review_checkbox.setChecked(True)
         for checkbox in self.checkboxes:
             checkbox.setChecked(True)
 
     def deselect_all(self):
+        if self.review_checkbox is not None:
+            self.review_checkbox.setChecked(False)
         for checkbox in self.checkboxes:
             checkbox.setChecked(False)

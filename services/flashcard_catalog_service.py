@@ -3,6 +3,9 @@ import os
 import re
 
 
+REVIEW_FLASHCARD_FILE_NAME = "review.csv"
+
+
 # Common encodings for Polish text files
 POLISH_ENCODINGS = ["utf-8-sig", "utf-8", "windows-1250", "iso-8859-2", "cp1250"]
 
@@ -21,6 +24,9 @@ def list_flashcard_csv_files(folder: str) -> list[dict]:
         if not filename.lower().endswith(".csv"):
             continue
 
+        if filename.lower() == REVIEW_FLASHCARD_FILE_NAME.lower():
+            continue
+
         files.append(
             {
                 "file": filename,
@@ -30,6 +36,41 @@ def list_flashcard_csv_files(folder: str) -> list[dict]:
         )
 
     return files
+
+
+def save_review_flashcard_file(folder: str, cards: list[dict]) -> bool:
+    path = os.path.join(folder, REVIEW_FLASHCARD_FILE_NAME)
+
+    if not cards:
+        if not os.path.exists(path):
+            return True
+        try:
+            os.remove(path)
+            return True
+        except Exception:
+            return False
+
+    try:
+        with open(path, "w", encoding="utf-8", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["sideA", "sideB"])
+            for card in cards:
+                writer.writerow([card["side_a"]["text"], card["side_b"]["text"]])
+        return True
+    except Exception:
+        return False
+
+
+def get_review_flashcard_file(folder: str) -> dict | None:
+    path = os.path.join(folder, REVIEW_FLASHCARD_FILE_NAME)
+    if not os.path.exists(path) or not os.path.isfile(path):
+        return None
+
+    return {
+        "file": REVIEW_FLASHCARD_FILE_NAME,
+        "label": "Review Pool",
+        "path": path,
+    }
 
 
 def normalize_flashcard_header(header: str) -> str:

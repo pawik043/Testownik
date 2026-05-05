@@ -20,11 +20,14 @@ from widgets import AnswerBox
 from services import (
     QuizInteractionService,
     QuizSessionService,
+    REVIEW_FLASHCARD_FILE_NAME,
     delete_file,
+    get_review_flashcard_file,
     list_flashcard_csv_files,
     load_flashcard_deck,
     load_session,
     save_json_file,
+    save_review_flashcard_file,
 )
 
 
@@ -150,7 +153,8 @@ class QuizApp(QWidget):
                 return
 
         flashcard_files = list_flashcard_csv_files(folder)
-        if not flashcard_files:
+        review_file = get_review_flashcard_file(folder)
+        if not flashcard_files and review_file is None:
             QMessageBox.warning(
                 self,
                 "No CSV files",
@@ -158,7 +162,7 @@ class QuizApp(QWidget):
             )
             return
 
-        dialog = FlashcardFilePickerDialog(flashcard_files, self)
+        dialog = FlashcardFilePickerDialog(flashcard_files, review_file, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -326,6 +330,13 @@ class QuizApp(QWidget):
         if self.flashcard_current is not None:
             current_index = self.flashcard_current["index"]
 
+        review_cards = [
+            card
+            for index, card in enumerate(self.flashcard_cards)
+            if self.flashcard_status.get(str(index)) == "wrong"
+        ]
+        save_review_flashcard_file(self.flashcard_folder, review_cards)
+
         payload = {
             "selected_files": [file_info["file"] for file_info in self.selected_flashcard_files],
             "queue": [index for index, _ in self.flashcard_queue],
@@ -333,6 +344,7 @@ class QuizApp(QWidget):
             "status": self.flashcard_status,
             "showing_back": self.flashcard_showing_back,
             "waiting_next": self.flashcard_waiting_next,
+            "cards": self.flashcard_cards,
         }
         save_json_file(self.flashcard_config_path, payload)
         self.save_recent_session("flashcards", self.flashcard_folder)
@@ -344,20 +356,40 @@ class QuizApp(QWidget):
 
         flashcard_files = list_flashcard_csv_files(self.flashcard_folder)
         file_lookup = {file_info["file"]: file_info for file_info in flashcard_files}
-        selected_files = [
-            file_lookup[file_name]
-            for file_name in saved.get("selected_files", [])
-            if file_name in file_lookup
-        ]
-        if not selected_files:
-            return False
+        selected_files = []
+        saved_selected_files = saved.get("selected_files", [])
+        review_file = get_review_flashcard_file(self.flashcard_folder)
 
-        deck = load_flashcard_deck(selected_files)
-        if not deck["files"] or not deck["cards"]:
-            return False
+        for file_name in saved_selected_files:
+            if file_name in file_lookup:
+                selected_files.append(file_lookup[file_name])
+            elif file_name == REVIEW_FLASHCARD_FILE_NAME and review_file is not None:
+                selected_files.append(review_file)
+            else:
+                selected_files.append(
+                    {
+                        "file": file_name,
+                        "label": file_name,
+                        "path": os.path.join(self.flashcard_folder, file_name),
+                    }
+                )
 
-        self.selected_flashcard_files = deck["files"]
-        self.flashcard_cards = deck["cards"]
+        deck = None
+        if selected_files:
+            deck = load_flashcard_deck(selected_files)
+            if not deck["files"] or not deck["cards"]:
+                deck = None
+
+        if deck is None:
+            saved_cards = saved.get("cards")
+            if not saved_cards:
+                return False
+
+            self.selected_flashcard_files = selected_files
+            self.flashcard_cards = saved_cards
+        else:
+            self.selected_flashcard_files = deck["files"]
+            self.flashcard_cards = deck["cards"]
         self.active_mode = "flashcards"
         self.flashcard_config_path = os.path.join(self.flashcard_folder, FLASHCARD_CONFIG_NAME)
 
