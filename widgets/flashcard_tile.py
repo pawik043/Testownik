@@ -2,6 +2,8 @@ from PySide6.QtCore import Qt, QRect
 from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
+from .theme import colors
+
 
 class FlashcardTile(QFrame):
     def __init__(self, on_click):
@@ -24,8 +26,8 @@ class FlashcardTile(QFrame):
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet(
-            """
-            color: #f2f2f7;
+            f"""
+            color: {colors()["text"]};
             background: transparent;
             border: none;
             padding: 0px;
@@ -36,29 +38,43 @@ class FlashcardTile(QFrame):
         self._update_font_size()
 
     def _front_style(self) -> str:
-        return """
-        QFrame {
-            background: #2c2c2e;
+        c = colors()
+        return f"""
+        QFrame {{
+            background: {c["tile"]};
             border-radius: 24px;
-            border: 2px solid #3a3a3c;
-        }
+            border: 2px solid {c["tile_border"]};
+        }}
         """
 
     def _back_style(self) -> str:
-        return """
-        QFrame {
-            background: #0a84ff22;
+        c = colors()
+        return f"""
+        QFrame {{
+            background: {c["selected_bg"]};
             border-radius: 24px;
-            border: 2px solid #0a84ff;
-        }
+            border: 2px solid {c["selected_border"]};
+        }}
         """
 
     def set_text(self, text: str, revealed: bool = False):
         self.revealed = revealed
         self.current_text = text or ""
         self.label.setText(self.current_text)
-        self.setStyleSheet(self._back_style() if revealed else self._front_style())
+        self.refresh_theme()
         self._update_font_size()
+
+    def refresh_theme(self):
+        self.setStyleSheet(self._back_style() if self.revealed else self._front_style())
+        self.label.setStyleSheet(
+            f"""
+            color: {colors()["text"]};
+            background: transparent;
+            border: none;
+            padding: 0px;
+            margin: 0px;
+            """
+        )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

@@ -4,7 +4,7 @@ import time
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -96,6 +96,22 @@ class QuizApp(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.stack)
+
+    def refresh_theme(self):
+        self.main_menu.refresh_theme()
+        self.quiz_view.refresh_theme()
+        self.flashcard_view.refresh_theme()
+        for box in self.boxes:
+            box.refresh_theme()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (
+            QEvent.ApplicationPaletteChange,
+            QEvent.PaletteChange,
+            QEvent.StyleChange,
+        ):
+            self.refresh_theme()
 
     # ---------- Navigation ----------
 

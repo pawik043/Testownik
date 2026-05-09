@@ -2,6 +2,8 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QPainter, QColor, QFont, QPainterPath
 from PySide6.QtCore import Qt
 
+from .theme import colors
+
 
 class ProgressWidget(QWidget):
     def __init__(self, state=None, counter_label=None, counter_labels=None, show_partial=True):
@@ -36,10 +38,11 @@ class ProgressWidget(QWidget):
         w = self.width()
         h = self.height()
         radius = h / 2
+        palette = colors()
 
         painter.setPen(Qt.NoPen)
 
-        painter.setBrush(QColor("#3a3a3c"))
+        painter.setBrush(QColor(palette["progress_track"]))
         painter.drawRoundedRect(0, 0, w, h, radius, radius)
 
         path = QPainterPath()
@@ -54,17 +57,17 @@ class ProgressWidget(QWidget):
             x = 0
 
             if correct_w > 0:
-                painter.setBrush(QColor("#30d158"))
+                painter.setBrush(QColor(palette["correct"]))
                 painter.drawRect(x, 0, correct_w, h)
                 x += correct_w
 
             if partial_w > 0:
-                painter.setBrush(QColor("#ff9f0a"))
+                painter.setBrush(QColor(palette["partial"]))
                 painter.drawRect(x, 0, partial_w, h)
                 x += partial_w
 
             if wrong_w > 0:
-                painter.setBrush(QColor("#ff453a"))
+                painter.setBrush(QColor(palette["wrong"]))
                 painter.drawRect(x, 0, w - x, h)
 
         painter.setClipping(False)

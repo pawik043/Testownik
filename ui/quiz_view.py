@@ -5,12 +5,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
+from widgets.theme import colors, panel_style, transparent_label_style
 from widgets import ProgressWidget
 
 
 class QuizView(QWidget):
     def __init__(self, on_return, on_reset, on_submit):
         super().__init__()
+
+        self.setObjectName("quizView")
 
         root = QHBoxLayout(self)
         root.setContentsMargins(20, 20, 20, 20)
@@ -50,9 +53,8 @@ class QuizView(QWidget):
         self.left.addWidget(self.progress)
 
         # ---------- Divider ----------
-        line = QFrame()
-        line.setFrameShape(QFrame.VLine)
-        line.setStyleSheet("color:#3a3a3c")
+        self.divider = QFrame()
+        self.divider.setFrameShape(QFrame.VLine)
 
         # ---------- Right panel ----------
         self.right = QVBoxLayout()
@@ -60,13 +62,6 @@ class QuizView(QWidget):
 
         # Question box
         self.question_box = QFrame()
-        self.question_box.setStyleSheet("""
-            QFrame {
-                background: #1c1c1e;
-                border: 1px solid #3a3a3c;
-                border-radius: 24px;
-            }
-        """)
         self.question_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         question_layout = QVBoxLayout(self.question_box)
@@ -78,18 +73,10 @@ class QuizView(QWidget):
         self.question_label.setWordWrap(True)
         self.question_label.setAlignment(Qt.AlignCenter)
         self.question_label.setFont(QFont("Helvetica", 22, QFont.Bold))
-        self.question_label.setStyleSheet("color: #f2f2f7; background: transparent; border: none; padding: 0px; margin: 0px;")
         question_layout.addWidget(self.question_label)
 
         # Answers box
         self.answers_box = QFrame()
-        self.answers_box.setStyleSheet("""
-            QFrame {
-                background: #1c1c1e;
-                border: 1px solid #3a3a3c;
-                border-radius: 24px;
-            }
-        """)
         self.answers_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         answers_layout = QVBoxLayout(self.answers_box)
@@ -112,5 +99,15 @@ class QuizView(QWidget):
         self.right.addWidget(self.answers_box, 1)
 
         root.addLayout(self.left, 1)
-        root.addWidget(line)
+        root.addWidget(self.divider)
         root.addLayout(self.right, 3)
+        self.refresh_theme()
+
+    def refresh_theme(self):
+        palette = colors()
+        self.setStyleSheet(f"QWidget#quizView {{ background: {palette['window']}; }}")
+        self.divider.setStyleSheet(f"color: {palette['panel_border']};")
+        self.question_box.setStyleSheet(panel_style())
+        self.answers_box.setStyleSheet(panel_style())
+        self.question_label.setStyleSheet(transparent_label_style())
+        self.progress.update()

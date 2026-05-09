@@ -10,12 +10,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from widgets.theme import colors, panel_style, transparent_label_style
 from widgets import FlashcardTile, ProgressWidget
 
 
 class FlashcardView(QWidget):
     def __init__(self, on_return, on_reset, on_flip, on_known, on_review, on_next):
         super().__init__()
+
+        self.setObjectName("flashcardView")
 
         root = QHBoxLayout(self)
         root.setContentsMargins(20, 20, 20, 20)
@@ -58,21 +61,13 @@ class FlashcardView(QWidget):
         self.left.addWidget(self.counter_label)
         self.left.addWidget(self.progress)
 
-        line = QFrame()
-        line.setFrameShape(QFrame.VLine)
-        line.setStyleSheet("color:#3a3a3c")
+        self.divider = QFrame()
+        self.divider.setFrameShape(QFrame.VLine)
 
         self.right = QVBoxLayout()
         self.right.setSpacing(18)
 
         self.header_box = QFrame()
-        self.header_box.setStyleSheet("""
-            QFrame {
-                background: #1c1c1e;
-                border: 1px solid #3a3a3c;
-                border-radius: 24px;
-            }
-        """)
         self.header_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         header_layout = QVBoxLayout(self.header_box)
@@ -83,25 +78,16 @@ class FlashcardView(QWidget):
         self.question_label.setWordWrap(True)
         self.question_label.setAlignment(Qt.AlignCenter)
         self.question_label.setFont(QFont("Helvetica", 22, QFont.Bold))
-        self.question_label.setStyleSheet("color: #f2f2f7; background: transparent; border: none; padding: 0px; margin: 0px;")
 
         self.subtitle_label = QLabel("Tap the card to reveal the answer")
         self.subtitle_label.setWordWrap(True)
         self.subtitle_label.setAlignment(Qt.AlignCenter)
         self.subtitle_label.setFont(QFont("Helvetica", 13))
-        self.subtitle_label.setStyleSheet("color: #8e8e93; background: transparent; border: none; padding: 0px; margin: 0px;")
 
         header_layout.addWidget(self.question_label)
         header_layout.addWidget(self.subtitle_label)
 
         self.card_box = QFrame()
-        self.card_box.setStyleSheet("""
-            QFrame {
-                background: #1c1c1e;
-                border: 1px solid #3a3a3c;
-                border-radius: 24px;
-            }
-        """)
         self.card_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         card_layout = QVBoxLayout(self.card_box)
@@ -137,5 +123,17 @@ class FlashcardView(QWidget):
         self.right.addWidget(self.card_box, 1)
 
         root.addLayout(self.left, 1)
-        root.addWidget(line)
+        root.addWidget(self.divider)
         root.addLayout(self.right, 3)
+        self.refresh_theme()
+
+    def refresh_theme(self):
+        palette = colors()
+        self.setStyleSheet(f"QWidget#flashcardView {{ background: {palette['window']}; }}")
+        self.divider.setStyleSheet(f"color: {palette['panel_border']};")
+        self.header_box.setStyleSheet(panel_style())
+        self.card_box.setStyleSheet(panel_style())
+        self.question_label.setStyleSheet(transparent_label_style())
+        self.subtitle_label.setStyleSheet(transparent_label_style("muted_text"))
+        self.card.refresh_theme()
+        self.progress.update()
