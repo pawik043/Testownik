@@ -15,7 +15,15 @@ from widgets import FlashcardTile, ProgressWidget
 
 
 class FlashcardView(QWidget):
-    def __init__(self, on_return, on_reset, on_flip, on_known, on_review, on_next):
+    def __init__(
+        self,
+        on_return,
+        on_reset,
+        on_flip,
+        on_known,
+        on_review,
+        on_next,
+    ):
         super().__init__()
 
         self.setObjectName("flashcardView")
@@ -102,14 +110,24 @@ class FlashcardView(QWidget):
         self.classification_actions = QHBoxLayout()
         self.classification_actions.setSpacing(12)
 
-        self.known_btn = QPushButton("I Knew It")
+        self.known_btn = QPushButton("I Knew It [U]")
         self.known_btn.clicked.connect(on_known)
 
-        self.review_btn = QPushButton("Needs Review")
+        self.review_btn = QPushButton("Needs Review [I]")
         self.review_btn.clicked.connect(on_review)
 
         self.next_btn = QPushButton("Next")
         self.next_btn.clicked.connect(on_next)
+
+        for button in (
+            self.return_btn,
+            self.reset_btn,
+            self.reveal_btn,
+            self.known_btn,
+            self.review_btn,
+            self.next_btn,
+        ):
+            button.setFocusPolicy(Qt.NoFocus)
 
         self.classification_actions.addWidget(self.known_btn)
         self.classification_actions.addWidget(self.review_btn)

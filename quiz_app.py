@@ -97,7 +97,7 @@ class QuizApp(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.stack)
 
-    def refresh_theme(self):
+    def refresh_theme(self, *args):
         self.main_menu.refresh_theme()
         self.quiz_view.refresh_theme()
         self.flashcard_view.refresh_theme()
@@ -112,6 +112,28 @@ class QuizApp(QWidget):
             QEvent.StyleChange,
         ):
             self.refresh_theme()
+
+    def keyPressEvent(self, event):
+        if self.active_mode == "flashcards":
+            key = event.key()
+            if key == Qt.Key_Space:
+                self.handle_flashcard_space()
+                event.accept()
+                return
+            if key == Qt.Key_Backspace:
+                self.handle_flashcard_backspace()
+                event.accept()
+                return
+            if key == Qt.Key_U:
+                self.handle_flashcard_known_shortcut()
+                event.accept()
+                return
+            if key == Qt.Key_I:
+                self.handle_flashcard_review_shortcut()
+                event.accept()
+                return
+
+        super().keyPressEvent(event)
 
     # ---------- Navigation ----------
 
@@ -560,7 +582,37 @@ class QuizApp(QWidget):
     def mark_flashcard_review(self):
         self.classify_flashcard("wrong")
 
-    def classify_flashcard(self, status: str):
+    def handle_flashcard_space(self):
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_waiting_next:
+            self.next_flashcard()
+        elif self.flashcard_showing_back:
+            self.classify_flashcard("correct", advance=True)
+        else:
+            self.flip_flashcard()
+
+    def handle_flashcard_backspace(self):
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_waiting_next:
+            self.next_flashcard()
+        else:
+            if not self.flashcard_showing_back:
+                self.flashcard_showing_back = True
+            self.classify_flashcard("wrong", advance=True)
+
+    def handle_flashcard_known_shortcut(self):
+        if self.active_mode == "flashcards" and self.flashcard_showing_back:
+            self.classify_flashcard("correct", advance=True)
+
+    def handle_flashcard_review_shortcut(self):
+        if self.active_mode == "flashcards" and self.flashcard_showing_back:
+            self.classify_flashcard("wrong", advance=True)
+
+    def classify_flashcard(self, status: str, advance: bool = False):
         if self.active_mode != "flashcards" or not self.flashcard_current:
             return
 
@@ -576,6 +628,9 @@ class QuizApp(QWidget):
         self.update_flashcard_mastery_label()
         self.render_current_flashcard()
         self.save_flashcard_session()
+
+        if advance:
+            self.next_flashcard()
 
     def finish_flashcard_session(self):
         self.timer.stop()
