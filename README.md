@@ -6,6 +6,26 @@ It currently supports two learning modes:
 - Quiz mode for multiple-choice practice from `.txt` files
 - Flashcards mode for card-based review from `.csv` files
 
+## Current Release: v1.1.0
+
+Compared with `v1.0.1`, this build focuses on smoother flashcard study, better theme support, and a simpler release pipeline.
+
+### What's New Since v1.0.1
+
+- Added dynamic light/dark theme handling. The custom UI now follows system appearance changes while the app is running.
+- Reworked bright mode to use clean white and pale gray surfaces, with distinct pale-tinted main menu mode buttons.
+- Added flashcard keyboard navigation:
+  - `Space` reveals a card, then marks it as known and advances on the next press.
+  - `U` reveals a card, or marks `I Knew It` when the answer is visible.
+  - `I` reveals a card, or marks `Needs Review` when the answer is visible.
+  - `Backspace` marks the card as `Needs Review`.
+- Added visual flashcard feedback before auto-advance:
+  - known cards briefly pulse green
+  - review cards briefly pulse red
+- Added a review flashcard file flow so cards marked `Needs Review` can be stored and picked up again later.
+- Temporarily disabled the macOS GitHub Actions build while keeping the workflow commented for future use.
+- Windows GitHub Actions builds remain active.
+
 ## Features
 
 - Two study modes from the main menu: `Quiz Mode` and `Flashcards Mode`
