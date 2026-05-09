@@ -1,8 +1,10 @@
-from PySide6.QtCore import Qt, QRect
-from PySide6.QtGui import QFont, QFontMetrics
+import math
+
+from PySide6.QtCore import Qt, QRect, QTimer
+from PySide6.QtGui import QColor, QFont, QFontMetrics
 from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
-from .theme import colors
+from .theme import colors, is_dark_mode
 
 
 class FlashcardTile(QFrame):
@@ -14,6 +16,10 @@ class FlashcardTile(QFrame):
         self.base_font_family = "Helvetica"
         self.base_font_weight = QFont.Bold
         self.min_font_size = 18
+        self.feedback_timer = None
+        self.feedback_step = 0
+        self.feedback_steps = 30
+        self.feedback_done = None
 
         self.setMinimumHeight(320)
         self.setStyleSheet(self._front_style())
@@ -39,21 +45,18 @@ class FlashcardTile(QFrame):
 
     def _front_style(self) -> str:
         c = colors()
-        return f"""
-        QFrame {{
-            background: {c["tile"]};
-            border-radius: 24px;
-            border: 2px solid {c["tile_border"]};
-        }}
-        """
+        return self._tile_style(c["tile"], c["tile_border"])
 
     def _back_style(self) -> str:
         c = colors()
+        return self._tile_style(c["selected_bg"], c["selected_border"])
+
+    def _tile_style(self, background: str, border: str) -> str:
         return f"""
         QFrame {{
-            background: {c["selected_bg"]};
+            background: {background};
             border-radius: 24px;
-            border: 2px solid {c["selected_border"]};
+            border: 2px solid {border};
         }}
         """
 
@@ -65,6 +68,9 @@ class FlashcardTile(QFrame):
         self._update_font_size()
 
     def refresh_theme(self):
+        if self.feedback_timer is not None and self.feedback_timer.isActive():
+            return
+
         self.setStyleSheet(self._back_style() if self.revealed else self._front_style())
         self.label.setStyleSheet(
             f"""
@@ -75,6 +81,58 @@ class FlashcardTile(QFrame):
             margin: 0px;
             """
         )
+
+    def play_feedback(self, status: str, on_finished=None, duration_ms: int = 500):
+        if self.feedback_timer is not None:
+            self.feedback_timer.stop()
+
+        self.feedback_step = 0
+        self.feedback_done = on_finished
+        self.feedback_steps = 30
+        interval = max(1, duration_ms // self.feedback_steps)
+        target_key = "correct" if status == "correct" else "wrong"
+
+        self.feedback_timer = QTimer(self)
+        self.feedback_timer.timeout.connect(lambda: self._advance_feedback(target_key))
+        self.feedback_timer.start(interval)
+
+    def _advance_feedback(self, target_key: str):
+        self.feedback_step += 1
+        progress = min(1.0, self.feedback_step / self.feedback_steps)
+        strength = 0.5 - 0.5 * math.cos(2 * math.pi * progress)
+
+        background_start, background_end, border_start, border_end = self._feedback_colors(target_key)
+        background = self._mix_color(background_start, background_end, strength)
+        border = self._mix_color(border_start, border_end, strength)
+        self.setStyleSheet(self._tile_style(background, border))
+
+        if self.feedback_step >= self.feedback_steps:
+            self.feedback_timer.stop()
+            self.refresh_theme()
+            done = self.feedback_done
+            self.feedback_done = None
+            if done is not None:
+                done()
+
+    def _mix_color(self, start: str, end: str, amount: float) -> str:
+        start_color = QColor(start)
+        end_color = QColor(end)
+        amount = max(0.0, min(1.0, amount))
+        red = round(start_color.red() + (end_color.red() - start_color.red()) * amount)
+        green = round(start_color.green() + (end_color.green() - start_color.green()) * amount)
+        blue = round(start_color.blue() + (end_color.blue() - start_color.blue()) * amount)
+        return QColor(red, green, blue).name()
+
+    def _feedback_colors(self, target_key: str):
+        if is_dark_mode():
+            if target_key == "correct":
+                return "#173820", "#2f7d46", "#30d158", "#30d158"
+            return "#3a1716", "#8f2520", "#ff453a", "#ff453a"
+
+        if target_key == "correct":
+            return "#eefbf1", "#b9efc5", "#34c759", "#34c759"
+
+        return "#fff0ef", "#ffc8c4", "#ff453a", "#ff453a"
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

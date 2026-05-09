@@ -62,6 +62,7 @@ class QuizApp(QWidget):
         self.flashcard_status = {}
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
+        self.flashcard_feedback_active = False
         self.quiz_reps = 1
 
         self.timer = QTimer(self)
@@ -345,6 +346,7 @@ class QuizApp(QWidget):
         self.flashcard_current = None
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
+        self.flashcard_feedback_active = False
         self.flashcard_config_path = os.path.join(self.flashcard_folder, FLASHCARD_CONFIG_NAME)
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
@@ -457,6 +459,7 @@ class QuizApp(QWidget):
 
         self.flashcard_showing_back = bool(saved.get("showing_back", False))
         self.flashcard_waiting_next = bool(saved.get("waiting_next", False))
+        self.flashcard_feedback_active = False
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
@@ -530,6 +533,7 @@ class QuizApp(QWidget):
         }
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
+        self.flashcard_feedback_active = False
 
         self.render_current_flashcard()
         self.save_flashcard_session()
@@ -557,13 +561,25 @@ class QuizApp(QWidget):
         else:
             self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
 
-        can_classify = self.flashcard_showing_back and not self.flashcard_waiting_next
-        can_reveal = not self.flashcard_showing_back and not self.flashcard_waiting_next
-        self.flashcard_view.card.setEnabled(not self.flashcard_waiting_next)
+        can_classify = (
+            self.flashcard_showing_back
+            and not self.flashcard_waiting_next
+            and not self.flashcard_feedback_active
+        )
+        can_reveal = (
+            not self.flashcard_showing_back
+            and not self.flashcard_waiting_next
+            and not self.flashcard_feedback_active
+        )
+        self.flashcard_view.card.setEnabled(
+            not self.flashcard_waiting_next and not self.flashcard_feedback_active
+        )
         self.flashcard_view.reveal_btn.setEnabled(can_reveal)
         self.flashcard_view.known_btn.setEnabled(can_classify)
         self.flashcard_view.review_btn.setEnabled(can_classify)
-        self.flashcard_view.next_btn.setEnabled(self.flashcard_waiting_next)
+        self.flashcard_view.next_btn.setEnabled(
+            self.flashcard_waiting_next and not self.flashcard_feedback_active
+        )
 
     def flip_flashcard(self):
         if self.active_mode != "flashcards" or not self.flashcard_current:
@@ -577,13 +593,16 @@ class QuizApp(QWidget):
         self.save_flashcard_session()
 
     def mark_flashcard_known(self):
-        self.classify_flashcard("correct")
+        self.classify_flashcard("correct", advance=True)
 
     def mark_flashcard_review(self):
-        self.classify_flashcard("wrong")
+        self.classify_flashcard("wrong", advance=True)
 
     def handle_flashcard_space(self):
         if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_feedback_active:
             return
 
         if self.flashcard_waiting_next:
@@ -597,6 +616,9 @@ class QuizApp(QWidget):
         if self.active_mode != "flashcards" or not self.flashcard_current:
             return
 
+        if self.flashcard_feedback_active:
+            return
+
         if self.flashcard_waiting_next:
             self.next_flashcard()
         else:
@@ -605,23 +627,48 @@ class QuizApp(QWidget):
             self.classify_flashcard("wrong", advance=True)
 
     def handle_flashcard_known_shortcut(self):
-        if self.active_mode == "flashcards" and self.flashcard_showing_back:
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_feedback_active:
+            return
+
+        if self.flashcard_waiting_next:
+            self.next_flashcard()
+        elif self.flashcard_showing_back:
             self.classify_flashcard("correct", advance=True)
+        else:
+            self.flip_flashcard()
 
     def handle_flashcard_review_shortcut(self):
-        if self.active_mode == "flashcards" and self.flashcard_showing_back:
+        if self.active_mode != "flashcards" or not self.flashcard_current:
+            return
+
+        if self.flashcard_feedback_active:
+            return
+
+        if self.flashcard_waiting_next:
+            self.next_flashcard()
+        elif self.flashcard_showing_back:
             self.classify_flashcard("wrong", advance=True)
+        else:
+            self.flip_flashcard()
 
     def classify_flashcard(self, status: str, advance: bool = False):
         if self.active_mode != "flashcards" or not self.flashcard_current:
             return
 
-        if not self.flashcard_showing_back or self.flashcard_waiting_next:
+        if (
+            not self.flashcard_showing_back
+            or self.flashcard_waiting_next
+            or self.flashcard_feedback_active
+        ):
             return
 
         card_index = str(self.flashcard_current["index"])
         self.flashcard_status[card_index] = status
         self.flashcard_waiting_next = True
+        self.flashcard_feedback_active = advance
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
@@ -630,7 +677,11 @@ class QuizApp(QWidget):
         self.save_flashcard_session()
 
         if advance:
-            self.next_flashcard()
+            self.flashcard_view.card.play_feedback(status, self.finish_flashcard_feedback)
+
+    def finish_flashcard_feedback(self):
+        self.flashcard_feedback_active = False
+        self.next_flashcard()
 
     def finish_flashcard_session(self):
         self.timer.stop()
