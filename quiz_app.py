@@ -63,6 +63,7 @@ class QuizApp(QWidget):
         self.flashcard_showing_back = False
         self.flashcard_waiting_next = False
         self.flashcard_feedback_active = False
+        self.flashcard_front_side = "side_a"
         self.quiz_reps = 1
 
         self.timer = QTimer(self)
@@ -89,6 +90,7 @@ class QuizApp(QWidget):
             on_known=self.mark_flashcard_known,
             on_review=self.mark_flashcard_review,
             on_next=self.next_flashcard,
+            on_direction_changed=self.change_flashcard_direction,
         )
 
         self.stack.addWidget(self.main_menu)
@@ -226,6 +228,7 @@ class QuizApp(QWidget):
 
         self.selected_flashcard_files = deck["files"]
         self.flashcard_cards = deck["cards"]
+        self.flashcard_front_side = dialog.selected_direction()
 
         if deck["skipped_files"]:
             QMessageBox.information(
@@ -348,6 +351,7 @@ class QuizApp(QWidget):
         self.flashcard_waiting_next = False
         self.flashcard_feedback_active = False
         self.flashcard_config_path = os.path.join(self.flashcard_folder, FLASHCARD_CONFIG_NAME)
+        self.flashcard_view.set_study_direction(self.flashcard_front_side)
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
@@ -384,6 +388,7 @@ class QuizApp(QWidget):
             "status": self.flashcard_status,
             "showing_back": self.flashcard_showing_back,
             "waiting_next": self.flashcard_waiting_next,
+            "front_side": self.flashcard_front_side,
             "cards": self.flashcard_cards,
         }
         save_json_file(self.flashcard_config_path, payload)
@@ -460,6 +465,10 @@ class QuizApp(QWidget):
         self.flashcard_showing_back = bool(saved.get("showing_back", False))
         self.flashcard_waiting_next = bool(saved.get("waiting_next", False))
         self.flashcard_feedback_active = False
+        self.flashcard_front_side = self.normalize_flashcard_side(
+            saved.get("front_side", "side_a")
+        )
+        self.flashcard_view.set_study_direction(self.flashcard_front_side)
 
         self.flashcard_view.progress.state = {"status": self.flashcard_status}
         self.flashcard_view.progress.update()
@@ -547,19 +556,22 @@ class QuizApp(QWidget):
             f"Flashcard {current_position} / {len(self.flashcard_status)}"
         )
         card = self.flashcard_current["card"]
+        front_side = self.flashcard_front_side
+        back_side = self.opposite_flashcard_side(front_side)
         if self.flashcard_waiting_next:
             subtitle = "Press Next to continue"
         elif self.flashcard_showing_back:
             subtitle = "Choose how well you knew this card"
         else:
-            subtitle = f'{card["source_label"]}  •  Tap the card to reveal the answer'
+            direction = self.flashcard_direction_label()
+            subtitle = f'{card["source_label"]}  •  {direction}  •  Tap the card to reveal the answer'
 
         self.flashcard_view.subtitle_label.setText(subtitle)
         self.flashcard_view.card.setEnabled(True)
         if self.flashcard_showing_back:
-            self.flashcard_view.card.set_text(card["side_b"]["text"], revealed=True)
+            self.flashcard_view.card.set_text(card[back_side]["text"], revealed=True)
         else:
-            self.flashcard_view.card.set_text(card["side_a"]["text"], revealed=False)
+            self.flashcard_view.card.set_text(card[front_side]["text"], revealed=False)
 
         can_classify = (
             self.flashcard_showing_back
@@ -580,6 +592,39 @@ class QuizApp(QWidget):
         self.flashcard_view.next_btn.setEnabled(
             self.flashcard_waiting_next and not self.flashcard_feedback_active
         )
+        self.flashcard_view.set_direction_controls_enabled(
+            not self.flashcard_waiting_next and not self.flashcard_feedback_active
+        )
+
+    def normalize_flashcard_side(self, side: str) -> str:
+        if side == "side_b":
+            return "side_b"
+        return "side_a"
+
+    def opposite_flashcard_side(self, side: str) -> str:
+        return "side_a" if side == "side_b" else "side_b"
+
+    def flashcard_direction_label(self) -> str:
+        if self.flashcard_front_side == "side_b":
+            return "SideB to SideA"
+        return "SideA to SideB"
+
+    def change_flashcard_direction(self, front_side: str):
+        front_side = self.normalize_flashcard_side(front_side)
+        if front_side == self.flashcard_front_side:
+            return
+
+        if self.flashcard_feedback_active or self.flashcard_waiting_next:
+            self.flashcard_view.set_study_direction(self.flashcard_front_side)
+            return
+
+        self.flashcard_front_side = front_side
+        self.flashcard_showing_back = False
+        self.flashcard_view.set_study_direction(self.flashcard_front_side)
+
+        if self.active_mode == "flashcards" and self.flashcard_current is not None:
+            self.render_current_flashcard()
+            self.save_flashcard_session()
 
     def flip_flashcard(self):
         if self.active_mode != "flashcards" or not self.flashcard_current:

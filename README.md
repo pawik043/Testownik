@@ -50,7 +50,8 @@ Compared with `v1.0.1`, this build focuses on smoother flashcard study, better t
 - Loads flashcard sets from `.csv` files in a selected folder
 - Lets the user choose which CSV files to include through a checkbox picker
 - Includes `Select All` and `Deselect All` shortcuts in the file picker
-- Displays a large flashcard with `sideA` first and `sideB` after reveal
+- Lets the user choose whether to study `sideA` to `sideB` or `sideB` to `sideA`
+- Displays a large flashcard with the chosen side first and the opposite side after reveal
 - Reveal by clicking the card or pressing `Check`
 - Classify cards with `I Knew It` or `Needs Review`
 - Tracks flashcard progress during the session

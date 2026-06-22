@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QLabel,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -19,6 +20,8 @@ class FlashcardFilePickerDialog(QDialog):
         self.resize(420, 520)
         self.checkboxes = []
         self.review_checkbox = None
+        self.side_a_first_radio = None
+        self.side_b_first_radio = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -40,6 +43,19 @@ class FlashcardFilePickerDialog(QDialog):
         actions.addWidget(deselect_all_btn)
         actions.addStretch()
         layout.addLayout(actions)
+
+        direction_label = QLabel("Study direction")
+        direction_label.setStyleSheet("font-weight: bold; margin-top: 4px;")
+        layout.addWidget(direction_label)
+
+        direction_actions = QHBoxLayout()
+        self.side_a_first_radio = QRadioButton("SideA to SideB")
+        self.side_b_first_radio = QRadioButton("SideB to SideA")
+        self.side_a_first_radio.setChecked(True)
+        direction_actions.addWidget(self.side_a_first_radio)
+        direction_actions.addWidget(self.side_b_first_radio)
+        direction_actions.addStretch()
+        layout.addLayout(direction_actions)
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -86,6 +102,11 @@ class FlashcardFilePickerDialog(QDialog):
         if self.review_checkbox is not None and self.review_checkbox.isChecked():
             files.insert(0, self.review_checkbox.file_info)
         return files
+
+    def selected_direction(self) -> str:
+        if self.side_b_first_radio is not None and self.side_b_first_radio.isChecked():
+            return "side_b"
+        return "side_a"
 
     def select_all(self):
         if self.review_checkbox is not None:

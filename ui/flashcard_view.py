@@ -1,10 +1,12 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QRadioButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -23,6 +25,7 @@ class FlashcardView(QWidget):
         on_known,
         on_review,
         on_next,
+        on_direction_changed,
     ):
         super().__init__()
 
@@ -40,6 +43,32 @@ class FlashcardView(QWidget):
 
         self.reset_btn = QPushButton("Reset Session")
         self.reset_btn.clicked.connect(on_reset)
+
+        self.direction_box = QFrame()
+        direction_layout = QVBoxLayout(self.direction_box)
+        direction_layout.setContentsMargins(14, 14, 14, 14)
+        direction_layout.setSpacing(8)
+
+        self.direction_label = QLabel("Study direction")
+        self.direction_label.setAlignment(Qt.AlignCenter)
+        self.direction_label.setFont(QFont("Helvetica", 12, QFont.Bold))
+
+        self.side_a_first_radio = QRadioButton("SideA to SideB")
+        self.side_b_first_radio = QRadioButton("SideB to SideA")
+        self.direction_group = QButtonGroup(self)
+        self.direction_group.addButton(self.side_a_first_radio)
+        self.direction_group.addButton(self.side_b_first_radio)
+        self.side_a_first_radio.setChecked(True)
+        self.side_a_first_radio.toggled.connect(
+            lambda checked: checked and on_direction_changed("side_a")
+        )
+        self.side_b_first_radio.toggled.connect(
+            lambda checked: checked and on_direction_changed("side_b")
+        )
+
+        direction_layout.addWidget(self.direction_label)
+        direction_layout.addWidget(self.side_a_first_radio)
+        direction_layout.addWidget(self.side_b_first_radio)
 
         self.timer_label = QLabel("0 min 00 sec")
         self.timer_label.setAlignment(Qt.AlignCenter)
@@ -62,6 +91,7 @@ class FlashcardView(QWidget):
 
         self.left.addWidget(self.return_btn)
         self.left.addWidget(self.reset_btn)
+        self.left.addWidget(self.direction_box)
         self.left.addStretch()
         self.left.addWidget(self.timer_label)
         self.left.addStretch()
@@ -126,6 +156,8 @@ class FlashcardView(QWidget):
             self.known_btn,
             self.review_btn,
             self.next_btn,
+            self.side_a_first_radio,
+            self.side_b_first_radio,
         ):
             button.setFocusPolicy(Qt.NoFocus)
 
@@ -151,7 +183,49 @@ class FlashcardView(QWidget):
         self.divider.setStyleSheet(f"color: {palette['panel_border']};")
         self.header_box.setStyleSheet(panel_style())
         self.card_box.setStyleSheet(panel_style())
+        self.direction_box.setStyleSheet(panel_style())
+        self.direction_label.setStyleSheet(transparent_label_style())
+        self.side_a_first_radio.setStyleSheet(self._radio_style(palette))
+        self.side_b_first_radio.setStyleSheet(self._radio_style(palette))
         self.question_label.setStyleSheet(transparent_label_style())
         self.subtitle_label.setStyleSheet(transparent_label_style("muted_text"))
         self.card.refresh_theme()
         self.progress.update()
+
+    def set_study_direction(self, front_side: str):
+        with QSignalBlocker(self.side_a_first_radio), QSignalBlocker(self.side_b_first_radio):
+            self.side_a_first_radio.setChecked(front_side == "side_a")
+            self.side_b_first_radio.setChecked(front_side == "side_b")
+
+    def set_direction_controls_enabled(self, enabled: bool):
+        self.side_a_first_radio.setEnabled(enabled)
+        self.side_b_first_radio.setEnabled(enabled)
+
+    def _radio_style(self, palette: dict) -> str:
+        return f"""
+        QRadioButton {{
+            color: {palette["text"]};
+            background: transparent;
+            border: none;
+            padding: 4px 0px;
+            spacing: 8px;
+        }}
+        QRadioButton::indicator {{
+            width: 15px;
+            height: 15px;
+            border-radius: 8px;
+            border: 1px solid {palette["button_neutral_border"]};
+            background: {palette["button_neutral"]};
+        }}
+        QRadioButton::indicator:hover {{
+            border: 1px solid {palette["button_neutral_hover_border"]};
+            background: {palette["button_neutral_hover"]};
+        }}
+        QRadioButton::indicator:checked {{
+            border: 1px solid {palette["selected_border"]};
+            background: {palette["selected_border"]};
+        }}
+        QRadioButton:disabled {{
+            color: {palette["muted_text"]};
+        }}
+        """
